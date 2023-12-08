@@ -79,6 +79,7 @@ def set_cfg(cfg):
     # Set this flag if you are using an uncased model.
     cfg.lm.do_lower_case = False 
     cfg.lm.model.feat_shrink = ""
+    cfg.lm.max_seq_length = 128
     # ------------------------------------------------------------------------ #
     # LM Training options
     # ------------------------------------------------------------------------ #

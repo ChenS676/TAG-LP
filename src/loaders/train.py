@@ -297,7 +297,6 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
         tokens = ["[CLS]"] + tokens_a + ["[SEP]"]
         segment_ids = [0] * len(tokens)
 
-        #TODO why
         if tokens_b:
             tokens += tokens_b + ["[SEP]"]
             segment_ids += [1] * (len(tokens_b) + 1)
@@ -325,6 +324,7 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
 
         if ex_index < 5 and print_info:
             logger.info("*** Example ***")
+            logger.info("number of examples: %d" % (len(examples)))
             logger.info("guid: %s" % (example.guid))
             logger.info("tokens: %s" % " ".join(
                     [str(x) for x in tokens]))
@@ -391,7 +391,6 @@ def main():
         "kg": KGProcessor,
     }
     
-    # 
     cfg.gradient_accumulation_steps = 1
     cfg.no_cuda = True
     cfg.bert_model = cfg.lm.model.name 
@@ -468,6 +467,18 @@ def main():
         if cfg.local_rank != -1:
             num_train_optimization_steps = num_train_optimization_steps // torch.distributed.get_world_size()
 
+    if cfg.do_train:
+        train_features = convert_examples_to_features(
+            train_examples, label_list, cfg.lm.max_seq_length, tokenizer)
+        logger.info("***** Running training *****")
+        logger.info("  Num examples = %d", len(train_examples))
+        logger.info("  Batch size = %d", cfg.train_batch_size)
+        logger.info("  Num steps = %d", num_train_optimization_steps)
+        all_input_ids = torch.tensor([f.input_ids for f in train_features], dtype=torch.long)
+        all_input_mask = torch.tensor([f.input_mask for f in train_features], dtype=torch.long)
+        all_segment_ids = torch.tensor([f.segment_ids for f in train_features], dtype=torch.long)
+
+        all_label_ids = torch.tensor([f.label_id for f in train_features], dtype=torch.long)
 
 
 if __name__ == "__main__":
