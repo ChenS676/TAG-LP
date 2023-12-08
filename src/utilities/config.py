@@ -25,7 +25,7 @@ def set_cfg(cfg):
     cfg.data.max_seq_length = 128
     cfg.task_name = 'kg'
     cfg.cache_dir = ''
-
+    cfg.output_dir = ''
     # ------------------------------------------------------------------------ #
     # Train options
     # ------------------------------------------------------------------------ #
@@ -80,6 +80,8 @@ def set_cfg(cfg):
     cfg.lm.do_lower_case = False 
     cfg.lm.model.feat_shrink = ""
     cfg.lm.max_seq_length = 128
+    cfg.lm.learning_rate = 5e-5
+    cfg.lm.warmup_proportion = 0.1
     # ------------------------------------------------------------------------ #
     # LM Training options
     # ------------------------------------------------------------------------ #

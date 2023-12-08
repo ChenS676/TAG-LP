@@ -1,7 +1,5 @@
 
 from __future__ import absolute_import, division, print_function
-
-import argparse
 import csv
 import logging
 import os
@@ -27,8 +25,12 @@ from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE, WE
 import logging
 import os, sys
 sys.path.insert(0, '..')
+
 from src.utilities.config import cfg, update_cfg
+from src.utilities.utils import AverageMeter
+
 logger = logging.getLogger(__name__)
+from timebudget import timebudget
 
 ROOT_PATH = '/pfs/work7/workspace/scratch/cc7738-prefeature1/TAG-LP/data'
 
@@ -81,7 +83,8 @@ class DataProcessor(object):
         """Gets the list of labels for this data set."""
         raise NotImplementedError()
 
-    @classmethod
+    @classmethod 
+    @timebudget 
     def _read_tsv(cls, input_file, quotechar=None):
         """Reads a tab separated value file."""
         logging.info("load train tsv.")
@@ -144,6 +147,7 @@ class KGProcessor(DataProcessor):
         """Gets all labels (0, 1) for triples in the knowledge graph."""
         return ["0", "1"]
 
+
     def get_entities(self, dir):
         """Gets all entities in the knowledge graph."""
         # return list(self.labels) 
@@ -154,6 +158,7 @@ class KGProcessor(DataProcessor):
                 # print(line.strip())
                 entities.append(line.strip())
         return entities
+    
     
     def _create_examples(self, lines, set_type, dir):
         """Creates examples for the training and dev sets."""
@@ -247,7 +252,7 @@ class KGProcessor(DataProcessor):
                             InputExample(guid=guid, text_a=text_a, text_b=text_b, text_c = tmp_tail_text, label="0"))                                                  
         return examples
 
-
+@timebudget
 def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer, print_info = True):
     """Loads a data file into a list of `InputBatch`s."""
 
@@ -262,7 +267,8 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
 
         tokens_b = None
         tokens_c = None
-
+        avg_len = AverageMeter()
+        
         if example.text_b and example.text_c:
             tokens_b = tokenizer.tokenize(example.text_b)
             tokens_c = tokenizer.tokenize(example.text_c)
@@ -270,7 +276,7 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
             # length is less than the specified length.
             # Account for [CLS], [SEP], [SEP], [SEP] with "- 4"
             #_truncate_seq_pair(tokens_a, tokens_b, max_seq_length - 3)
-            _truncate_seq_triple(tokens_a, tokens_b, tokens_c, max_seq_length - 4)
+            avg_len = _truncate_seq_triple(tokens_a, tokens_b, tokens_c, max_seq_length - 4, avg_len)
         else:
             # Account for [CLS] and [SEP] with "- 2"
             if len(tokens_a) > max_seq_length - 2:
@@ -342,6 +348,7 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
                               input_mask=input_mask,
                               segment_ids=segment_ids,
                               label_id=label_id))
+    logger.info("avg_len: {}".format(avg_len.avg))
     return features
 
 
@@ -362,15 +369,17 @@ def _truncate_seq_pair(tokens_a, tokens_b, max_length):
             tokens_b.pop()
             
             
-def _truncate_seq_triple(tokens_a, tokens_b, tokens_c, max_length):
+def _truncate_seq_triple(tokens_a, tokens_b, tokens_c, max_length, avg_len):
     """Truncates a sequence triple in place to the maximum length."""
 
     # This is a simple heuristic which will always truncate the longer sequence
     # one token at a time. This makes more sense than truncating an equal percent
     # of tokens from each, since if one sequence is very short then each token
     # that's truncated likely contains more information than a longer sequence.
+
     while True:
         total_length = len(tokens_a) + len(tokens_b) + len(tokens_c)
+        avg_len.update(total_length)
         if total_length <= max_length:
             break
         if len(tokens_a) > len(tokens_b) and len(tokens_a) > len(tokens_c):
@@ -381,3 +390,6 @@ def _truncate_seq_triple(tokens_a, tokens_b, tokens_c, max_length):
             tokens_c.pop()
         else:
             tokens_c.pop()
+            
+    return avg_len
+    
