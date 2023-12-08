@@ -255,7 +255,7 @@ def main():
                     optimizer.zero_grad()
                     global_step += 1
             print("Training loss: ", tr_loss, nb_tr_examples)
-        timebudget.report(reset=True) 
+        
         
     if cfg.do_train and (cfg.local_rank == -1 or torch.distributed.get_rank() == 0):
         # Save a trained model, configuration and tokenizer
