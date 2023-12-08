@@ -101,10 +101,30 @@ def main():
     if cfg.do_train:
         train_examples = processor.get_train_examples(cfg.data.dir)
         num_train_optimization_steps = int(
-            len(train_examples) / cfg.train_batch_size / cfg.gradient_accumulation_steps) * cfg.num_train_epochs
+            len(train_examples) / cfg.train_batch_size / cfg.gradient_accumulation_steps) * cfg.lm.train.epochs
         if cfg.local_rank != -1:
             num_train_optimization_steps = num_train_optimization_steps // torch.distributed.get_world_size()
+            
+    cfg.train_batch_size = cfg.train_batch_size // cfg.gradient_accumulation_steps
+    cfg.seed = random.randint(1, 200)
+    random.seed(cfg.seed)
+    np.random.seed(cfg.seed)
+    torch.manual_seed(cfg.seed)
+
+    if n_gpu > 0:
+        torch.cuda.manual_seed_all(cfg.seed)
+
+    if not cfg.do_train and not cfg.do_eval:
+        raise ValueError("At least one of `do_train` or `do_eval` must be True.")
+
+    import uuid 
+    cfg.output_dir = os.path.join(cfg.output_dir, str(uuid.uuid4()))
     
+    if os.path.exists(cfg.output_dir) and os.listdir(cfg.output_dir) and cfg.do_train:
+        raise ValueError("Output directory ({}) already exists and is not empty.".format(cfg.output_dir))
+    if not os.path.exists(cfg.output_dir):
+        os.makedirs(cfg.output_dir)
+        
     # ------------------------------------------------------------------------ #
     # Model 
     # ------------------------------------------------------------------------ #
@@ -196,7 +216,7 @@ def main():
         # ------------------------------------------------------------------------ #
         model.train()
         #print(model)
-        for _ in trange(int(cfg.num_train_epochs), desc="Epoch"):
+        for _ in trange(int(cfg.lm.train.epochs), desc="Epoch"):
             tr_loss = 0
             nb_tr_examples, nb_tr_steps = 0, 0
             for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration")):
@@ -251,7 +271,7 @@ def main():
 
         # Load a trained model and vocabulary that you have fine-tuned
         model = BertForSequenceClassification.from_pretrained(cfg.output_dir, num_labels=num_labels)
-        tokenizer = BertTokenizer.from_pretrained(cfg.output_dir, do_lower_case=cfg.do_lower_case)
+        tokenizer = BertTokenizer.from_pretrained(cfg.output_dir, do_lower_case=cfg.lm.do_lower_case)
     else:
         model = BertForSequenceClassification.from_pretrained(cfg.bert_model, num_labels=num_labels)
     model.to(device)
@@ -262,9 +282,9 @@ def main():
         
     if cfg.do_eval and (cfg.local_rank == -1 or torch.distributed.get_rank() == 0):
         
-        eval_examples = processor.get_dev_examples(cfg.data_dir)
+        eval_examples = processor.get_dev_examples(cfg.data.dir)
         eval_features = convert_examples_to_features(
-            eval_examples, label_list, cfg.max_seq_length, tokenizer)
+            eval_examples, label_list, cfg.lm.max_seq_length, tokenizer)
         logger.info("***** Running evaluation *****")
         logger.info("  Num examples = %d", len(eval_examples))
         logger.info("  Batch size = %d", cfg.eval_batch_size)
@@ -281,7 +301,7 @@ def main():
         
         # Load a trained model and vocabulary that you have fine-tuned
         model = BertForSequenceClassification.from_pretrained(cfg.output_dir, num_labels=num_labels)
-        tokenizer = BertTokenizer.from_pretrained(cfg.output_dir, do_lower_case=cfg.do_lower_case)
+        tokenizer = BertTokenizer.from_pretrained(cfg.output_dir, do_lower_case=cfg.lm.do_lower_case)
         model.to(device)
 
         model.eval()
@@ -296,7 +316,7 @@ def main():
             label_ids = label_ids.to(device)
 
             with torch.no_grad():
-                logits = model(input_ids, segment_ids, input_mask, labels=None)
+                logits = model(input_ids, segment_ids, input_mask, labels=None)[0]
 
             # create eval loss and other metric required by the task
             loss_fct = CrossEntropyLoss()

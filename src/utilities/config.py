@@ -22,18 +22,23 @@ def set_cfg(cfg):
     
     cfg.data = CN()
     cfg.data.dir = 'umls'
-    cfg.data.max_seq_length = 128
+
     cfg.task_name = 'kg'
     cfg.cache_dir = ''
-    cfg.output_dir = ''
+    cfg.output_dir = './output_umls/'
     # ------------------------------------------------------------------------ #
     # Train options
     # ------------------------------------------------------------------------ #
     
     cfg.do_train = True
+    cfg.do_eval = True
     cfg.train_batch_size = 32
     cfg.gradient_accumulation_steps = 1
-    cfg.num_train_epochs = 3.0
+    # cfg.num_train_epochs = 3.0
+    
+    
+    cfg.eval_batch_size = 8 
+    
     
     cfg.gnn = CN()
     # ------------------------------------------------------------------------ #
@@ -75,7 +80,7 @@ def set_cfg(cfg):
     cfg.lm.model = CN()
     # LM model name
     cfg.lm.model.name = 'bert-base-cased'
-    
+
     # Set this flag if you are using an uncased model.
     cfg.lm.do_lower_case = False 
     cfg.lm.model.feat_shrink = ""
@@ -93,7 +98,7 @@ def set_cfg(cfg):
     # Base learning rate
     cfg.lm.train.lr = 2e-5
     # Maximal number of epochs
-    cfg.lm.train.epochs = 4
+    cfg.lm.train.epochs = 1 
     # The number of warmup steps
     cfg.lm.train.warmup_epochs = 0.6
     # Number of update steps between two evaluations
