@@ -24,3 +24,75 @@ def compute_metrics(preds, labels):
     assert len(preds) == len(labels)
     return {"acc": simple_accuracy(preds, labels)}
 
+import logging
+import torch 
+from yacs.config import CfgNode as CN
+
+def config_device(cfg: CN, logger, model):
+    
+    if cfg.server_ip and cfg.server_port:
+        # Distant debugging - see https://code.visualstudio.com/docs/python/debugging#_attach-to-a-local-script
+        import ptvsd
+        print("Waiting for debugger attach")
+        ptvsd.enable_attach(address=(cfg.server_ip, cfg.server_port), redirect_output=True)
+        ptvsd.wait_for_attach()
+    
+    logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
+                    datefmt = '%m/%d/%Y %H:%M:%S',
+                    level = logging.INFO if cfg.local_rank in [-1, 0] else logging.WARN)
+    
+    if cfg.local_rank == -1 or cfg.no_cuda:
+        device = torch.device("cuda" if torch.cuda.is_available() and not cfg.no_cuda else "cpu")
+        cfg.n_gpu = torch.cuda.device_count()
+    else:
+        torch.cuda.set_device(cfg.local_rank)
+        device = torch.device("cuda", cfg.local_rank)
+        cfg.n_gpu = 1
+        # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
+        torch.distributed.init_process_group(backend='nccl')
+        
+    if cfg.fp16:
+        model.half()
+    model.to(device)
+    if cfg.local_rank != -1:
+        try:
+            from apex.parallel import DistributedDataParallel as DDP
+        except ImportError:
+            raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use distributed and fp16 training.")
+
+        model = DDP(model)
+    elif cfg.n_gpu > 1:
+        model = torch.nn.DataParallel(model)
+        model = torch.nn.parallel.data_parallel(model)
+    
+    logger.info("device: {} n_gpu: {}, distributed training: {}, 16-bits training: {}".format(device, cfg.n_gpu, bool(cfg.local_rank != -1), cfg.fp16))
+    return device
+
+import random
+import numpy as np 
+
+def seed_everything(cfg: CN):
+    cfg.seed = random.randint(1, 200)
+    random.seed(cfg.seed)
+    np.random.seed(cfg.seed)
+    torch.manual_seed(cfg.seed)
+    torch.backends.cudnn.deterministic = False  
+    
+    if cfg.n_gpu > 0:
+        torch.cuda.manual_seed_all(cfg.seed)
+        
+def check_cfg(cfg:CN):
+    if not cfg.do_train and not cfg.do_eval:
+        raise ValueError("At least one of `do_train` or `do_eval` must be True.")
+    if cfg.gradient_accumulation_steps < 1:
+        raise ValueError("Invalid gradient_accumulation_steps parameter: {}, should be >= 1".format(
+                            cfg.gradient_accumulation_steps))
+
+import os 
+def create_folders(cfg: CN):
+    import uuid 
+    cfg.output_dir = os.path.join(cfg.output_dir, str(uuid.uuid4()))
+    if os.path.exists(cfg.output_dir) and os.listdir(cfg.output_dir) and cfg.do_train:
+        raise ValueError("Output directory ({}) already exists and is not empty.".format(cfg.output_dir))
+    if not os.path.exists(cfg.output_dir):
+        os.makedirs(cfg.output_dir)

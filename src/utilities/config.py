@@ -11,13 +11,13 @@ def set_cfg(cfg):
     # Dataset name
     cfg.dataset = 'cora'
     # Cuda device number, used for machine with multiple gpus
-    cfg.device = 0
+    device = 2
     # Whether fix the running seed to remove randomness
     cfg.seed = None
     # Number of runs with random init
     cfg.runs = 4
     
-    cfg.local_rank = -1
+    cfg.local_rank = 0
     cfg.fp16 = False
     
     cfg.data = CN()
@@ -32,7 +32,7 @@ def set_cfg(cfg):
     
     cfg.do_train = True
     cfg.do_eval = True
-    cfg.train_batch_size = 32
+    cfg.train_batch_size = 128
     cfg.gradient_accumulation_steps = 1
     # cfg.num_train_epochs = 3.0
     
@@ -92,13 +92,13 @@ def set_cfg(cfg):
     # ------------------------------------------------------------------------ #
     cfg.lm.train = CN()
     #  Number of samples computed once per batch per device
-    cfg.lm.train.batch_size = 9
+    cfg.lm.train.batch_size = 128
     # Number of training steps for which the gradients should be accumulated
     cfg.lm.train.grad_acc_steps = 1
     # Base learning rate
     cfg.lm.train.lr = 2e-5
     # Maximal number of epochs
-    cfg.lm.train.epochs = 100
+    cfg.lm.train.epochs = 2
     # The number of warmup steps
     cfg.lm.train.warmup_epochs = 0.6
     # Number of update steps between two evaluations
