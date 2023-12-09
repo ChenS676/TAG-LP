@@ -38,7 +38,8 @@ from src.utilities.utils import compute_metrics, config_device, seed_everything,
 from src.loaders.data import get_data
 from src.lm_trainer.bert_trainer import train_loop, eval_loop
 
-# os.environ['CUDA_VISIBLE_DEVICES']= '2'
+import os
+
 
 # TODO https://wandb.ai/wandb_fc/articles/reports/Monitor-Improve-GPU-Usage-for-Model-Training--Vmlldzo1NDQzNjM3#:~:text=Try%20increasing%20your%20batch%20size&text=Gradients%20for%20a%20batch%20are,increase%20the%20speed%20of%20calculation.
 # improve GPU usage for model training
@@ -54,7 +55,6 @@ def main():
     cfg.server_port = ''
     total_steps = 1000  # Adjust the number of training steps
     warmup_steps = 100  # Adjust the number of warm-up steps
-        
     # ------------------------------------------------------------------------ #
     # data params for config
     # ------------------------------------------------------------------------ #

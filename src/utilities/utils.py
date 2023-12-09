@@ -43,7 +43,8 @@ def config_device(cfg: CN, logger, model):
                     datefmt = '%m/%d/%Y %H:%M:%S',
                     level = logging.INFO if cfg.local_rank in [-1, 0] else logging.WARN)
     
-    if cfg.local_rank == -1 or cfg.no_cuda:
+    # multigpu
+    if cfg.local_rank != -1 and not cfg.no_cuda:
         device = torch.device("cuda" if torch.cuda.is_available() and not cfg.no_cuda else "cpu")
         cfg.n_gpu = torch.cuda.device_count()
     else:

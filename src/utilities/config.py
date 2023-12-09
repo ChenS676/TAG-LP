@@ -11,7 +11,6 @@ def set_cfg(cfg):
     # Dataset name
     cfg.dataset = 'cora'
     # Cuda device number, used for machine with multiple gpus
-    device = 2
     # Whether fix the running seed to remove randomness
     cfg.seed = None
     # Number of runs with random init
@@ -34,9 +33,7 @@ def set_cfg(cfg):
     cfg.do_eval = True
     cfg.train_batch_size = 128
     cfg.gradient_accumulation_steps = 1
-    # cfg.num_train_epochs = 3.0
-    
-    
+    # cfg.num_train_epochs = 3.0    
     cfg.eval_batch_size = 8 
     
     
@@ -87,6 +84,7 @@ def set_cfg(cfg):
     cfg.lm.max_seq_length = 128
     cfg.lm.learning_rate = 5e-5
     cfg.lm.warmup_proportion = 0.1
+    
     # ------------------------------------------------------------------------ #
     # LM Training options
     # ------------------------------------------------------------------------ #
