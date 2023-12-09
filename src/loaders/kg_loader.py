@@ -34,6 +34,7 @@ from timebudget import timebudget
 
 ROOT_PATH = '/pfs/work7/workspace/scratch/cc7738-prefeature1/TAG-LP/data'
 
+
 class InputExample(object):
     """A single training/test example for simple sequence classification."""
 
@@ -159,7 +160,7 @@ class KGProcessor(DataProcessor):
                 entities.append(line.strip())
         return entities
     
-    
+    @timebudget
     def _create_examples(self, lines, set_type, dir):
         """Creates examples for the training and dev sets."""
         # entity to text

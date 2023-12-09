@@ -28,6 +28,8 @@ import logging
 import torch 
 from yacs.config import CfgNode as CN
 
+from timebudget import timebudget
+
 def config_device(cfg: CN, logger, model):
     
     if cfg.server_ip and cfg.server_port:

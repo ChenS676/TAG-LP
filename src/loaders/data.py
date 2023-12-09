@@ -4,6 +4,9 @@ from torch.utils.data import (DataLoader, RandomSampler, SequentialSampler,
                               TensorDataset)
 from torch.utils.data.distributed import DistributedSampler
 
+from timebudget import timebudget
+
+@timebudget
 def get_data(features, cfg, logger):
     logger.info("***** Running training *****")
     logger.info("  Batch size = %d", cfg.train_batch_size)

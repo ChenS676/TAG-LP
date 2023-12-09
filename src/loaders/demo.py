@@ -36,21 +36,25 @@ from IPython import embed
 
 from src.utilities.utils import compute_metrics, config_device, seed_everything, check_cfg, create_folders
 from src.loaders.data import get_data
+from src.lm_trainer.bert_trainer import train_loop, eval_loop
+
 # os.environ['CUDA_VISIBLE_DEVICES']= '2'
-torch.backends.cudnn.deterministic = False
+
 # TODO https://wandb.ai/wandb_fc/articles/reports/Monitor-Improve-GPU-Usage-for-Model-Training--Vmlldzo1NDQzNjM3#:~:text=Try%20increasing%20your%20batch%20size&text=Gradients%20for%20a%20batch%20are,increase%20the%20speed%20of%20calculation.
 # improve GPU usage for model training
 # python -m torch.distributed.launch loaders/demo.py --do_train
 
 @timebudget
 def main():
-    
+    # temporary solution for passing arguments
     cfg.gradient_accumulation_steps = 1
     cfg.no_cuda = False
     cfg.bert_model = cfg.lm.model.name 
     cfg.server_ip = ''
     cfg.server_port = ''
-
+    total_steps = 1000  # Adjust the number of training steps
+    warmup_steps = 100  # Adjust the number of warm-up steps
+        
     # ------------------------------------------------------------------------ #
     # data params for config
     # ------------------------------------------------------------------------ #
@@ -114,8 +118,6 @@ def main():
         else:
             optimizer = FP16_Optimizer(optimizer, static_loss_scale=cfg.loss_scale)
             
-        total_steps = 1000  # Adjust the number of training steps
-        warmup_steps = 100  # Adjust the number of warm-up steps
         scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps)
     # else:   
     #     optimizer = BertAdam(optimizer_grouped_parameters,
@@ -129,6 +131,8 @@ def main():
                   lr = 5e-2, # args.learning_rate - default is 5e-5, our notebook had 2e-5
                   eps = 1e-8 # args.adam_epsilon  - default is 1e-8.
                 )
+        scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps)
+
     global_step = 0
     nb_tr_steps = 0
     tr_loss = 0
@@ -140,49 +144,11 @@ def main():
         # ------------------------------------------------------------------------ #
         # Train
         # ------------------------------------------------------------------------ #
+        model.to(device)
         model.train()
         #print(model)
-        for _ in trange(int(cfg.lm.train.epochs), desc="Epoch"):
-            tr_loss = 0
-            nb_tr_examples, nb_tr_steps = 0, 0
-            for step, batch in enumerate(tqdm(dataloader, desc="Iteration")):
-                batch = tuple(t.to(device) for t in batch)
-                input_ids, input_mask, segment_ids, label_ids = batch
-
-                # define a new function to compute loss values for both output_modes
-                outputs = model(input_ids, segment_ids, input_mask, labels=None)
-                loss = outputs[0]
-
-                loss_fct = CrossEntropyLoss()
-                loss = loss_fct(loss.view(-1, num_labels), label_ids.view(-1))
-
-                if cfg.n_gpu > 1:
-                    loss = loss.mean() # mean() to average on multi-gpu.
-                if cfg.gradient_accumulation_steps > 1:
-                    loss = loss / cfg.gradient_accumulation_steps
-
-                if cfg.fp16:
-                    optimizer.backward(loss)
-                else:
-                    loss.backward()
-
-                tr_loss += loss.item()
-                nb_tr_examples += input_ids.size(0)
-                nb_tr_steps += 1
-                if (step + 1) % cfg.gradient_accumulation_steps == 0:
-                    if cfg.fp16:
-                        # modify learning rate with special warm up BERT uses
-                        # if cfg.fp16 is False, BertAdam is used that handles this automatically
-                        lr_this_step = cfg.learning_rate * scheduler.get_lr(global_step/num_train_optimization_steps,
-                                                                                 cfg.warmup_proportion)
-                        for param_group in optimizer.param_groups:
-                            param_group['lr'] = lr_this_step
-                    optimizer.step()
-                    optimizer.zero_grad()
-                    global_step += 1
-            print("Training loss: ", tr_loss, nb_tr_examples)
-        
-        
+        gloabl_step, nb_tr_steps, tr_loss = train_loop(dataloader, model, optimizer, scheduler, device, num_labels, num_train_optimization_steps, global_step)
+                
     if cfg.do_train and (cfg.local_rank == -1 or torch.distributed.get_rank() == 0):
         # Save a trained model, configuration and tokenizer
         model_to_save = model.module if hasattr(model, 'module') else model  # Only save the model it-self
@@ -235,46 +201,8 @@ def main():
         nb_eval_steps = 0
         preds = []
 
-        for input_ids, input_mask, segment_ids, label_ids in tqdm(eval_dataloader, desc="Evaluating"):
-            input_ids = input_ids.to(device)
-            input_mask = input_mask.to(device)
-            segment_ids = segment_ids.to(device)
-            label_ids = label_ids.to(device)
-
-            with torch.no_grad():
-                logits = model(input_ids, segment_ids, input_mask, labels=None)[0]
-
-            # create eval loss and other metric required by the task
-            loss_fct = CrossEntropyLoss()
-            tmp_eval_loss = loss_fct(logits.view(-1, num_labels), label_ids.view(-1))
-            print(label_ids.view(-1))
-            
-            eval_loss += tmp_eval_loss.mean().item()
-            nb_eval_steps += 1
-            if len(preds) == 0:
-                preds.append(logits.detach().cpu().numpy())
-            else:
-                preds[0] = np.append(
-                    preds[0], logits.detach().cpu().numpy(), axis=0)
-
-        eval_loss = eval_loss / nb_eval_steps
-        preds = preds[0]
-
-        preds = np.argmax(preds, axis=1)
-        result = compute_metrics(preds, all_label_ids.numpy())
-        loss = tr_loss/nb_tr_steps if cfg.do_train else None
-
-        result['eval_loss'] = eval_loss
-        result['global_step'] = global_step
-        result['loss'] = loss
-
-        output_eval_file = os.path.join(cfg.output_dir, "eval_results.txt")
-        with open(output_eval_file, "w") as writer:
-            logger.info("***** Eval results *****")
-            for key in sorted(result.keys()):
-                logger.info("  %s = %s", key, str(result[key]))
-                writer.write("%s = %s\n" % (key, str(result[key])))
-                
+        eval_loop(eval_dataloader, model, device, num_labels, tr_loss, global_step, all_label_ids, cfg, compute_metrics, eval_loss, nb_eval_steps, nb_tr_steps, preds)
                 
 if __name__ == "__main__":
     main()
+    timebudget.report('main')
