@@ -34,32 +34,42 @@ from timebudget import timebudget
 timebudget.set_quiet()  # don't show measurements as they happen
 timebudget.report_at_exit()  # Generate report when the program exits
 
-import torch.multiprocessing as mp
-from torch.utils.data.distributed import DistributedSampler
-from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.distributed import init_process_group, destroy_process_group
 
 from IPython import embed
-from src.utilities.utils import compute_metrics, config_device
-from src.utilities.utils import seed_everything, check_cfg, create_folders, ddp_setup
-from src.loaders.data import get_data
-from src.lm_trainer.bert_trainer import train_loop, eval_loop
-from yacs.config import CfgNode as CN
-
-
 # TODO https://wandb.ai/wandb_fc/articles/reports/Monitor-Improve-GPU-Usage-for-Model-Training--Vmlldzo1NDQzNjM3#:~:text=Try%20increasing%20your%20batch%20size&text=Gradients%20for%20a%20batch%20are,increase%20the%20speed%20of%20calculation.
 # improve GPU usage for model training
 # python -m torch.distributed.launch loaders/demo.py --do_train
 # TODO double check the evaluation method in KG, compare it with others 1. tangji liang lecture, 2. galkin new paper
 # TODO add more evaluation metrics
 
+import torch.multiprocessing as mp
+from torch.utils.data.distributed import DistributedSampler
+from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.distributed import init_process_group, destroy_process_group
+
+
+from src.utilities.utils import compute_metrics, config_device
+from src.utilities.utils import seed_everything, check_cfg, create_folders, ddp_setup
+from src.loaders.data import get_data
+from src.lm_trainer.bert_trainer import train_loop, eval_loop, get_model
+from yacs.config import CfgNode as CN
+
+                
 @timebudget
-def main_worker(rank: int,
-         world_size: int,
+def main_worker(gpu: int,
+         ngpus_per_node: int,
          cfg: CN):
+    cfg.gpu = gpu
     
-    ddp_setup(rank, world_size)
+    model, tokenizer = get_model(cfg)
+    ddp_setup(cfg, ngpus_per_node, gpu, model)
+    if cfg.gpu is not None:  # If a gpu is set by user: NO PARALLELISM!!
+        torch.cuda.set_device(cfg.gpu)
+        model = model.cuda(cfg.gpu)
     
+    # current device on local machine 
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+
     processors = {
         "kg": KGProcessor,
     }
@@ -69,19 +79,10 @@ def main_worker(rank: int,
     num_labels = len(label_list)
     logging.info("label_list: {}".format(label_list))
     entity_list = processor.get_entities(cfg.data.dir)
-    #print(entity_list)
+    print(entity_list)
     # ------------------------------------------------------------------------ #
     # Model 
     # ------------------------------------------------------------------------ #
-    print('Loading BERT tokenizer...')
-    tokenizer = BertTokenizer.from_pretrained(cfg.lm.model.name, do_lower_case=cfg.lm.do_lower_case)
-    cache_dir = cfg.cache_dir if cfg.cache_dir else os.path.join(str(PYTORCH_PRETRAINED_BERT_CACHE), 'distributed_{}'.format(cfg.local_rank))
-    model = BertForSequenceClassification.from_pretrained(cfg.bert_model,
-              cache_dir=cache_dir,
-              num_labels=num_labels)
-    
-    config_device(cfg, logger, model, rank)
-    logger.info(f"model device {print(model.device)}, rank {rank}")
     seed_everything(cfg)
     check_cfg(cfg)
     create_folders(cfg)
@@ -124,8 +125,8 @@ def main_worker(rank: int,
     # BertAdam - Bert version of Adam algorithm with weight decay fix, warmup and linear decay of the learning rate.
     else:
         optimizer = AdamW(model.parameters(),
-                  lr = 5e-2, # args.learning_rate - default is 5e-5, our notebook had 2e-5
-                  eps = 1e-8 # args.adam_epsilon  - default is 1e-8.
+                  lr = 5e-2, # cfg.learning_rate - default is 5e-5, our notebook had 2e-5
+                  eps = 1e-8 # cfg.adam_epsilon  - default is 1e-8.
                 )
         scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=cfg.warmup_steps, num_training_steps=cfg.total_steps)
 
@@ -141,9 +142,8 @@ def main_worker(rank: int,
         # Train
         # ------------------------------------------------------------------------ #
         model.train()
-        model.to(rank)
         #print(model)
-        gloabl_step, nb_tr_steps, tr_loss = train_loop(dataloader, model, optimizer, scheduler, rank, num_labels, num_train_optimization_steps, global_step)
+        gloabl_step, nb_tr_steps, tr_loss = train_loop(dataloader, model, optimizer, scheduler, num_labels, num_train_optimization_steps, global_step, device)
                 
     if cfg.do_train and (cfg.local_rank == -1 or torch.distributed.get_rank() == 0):
         # Save a trained model, configuration and tokenizer
@@ -166,7 +166,6 @@ def main_worker(rank: int,
     # ------------------------------------------------------------------------ #
     # Evaluation
     # ------------------------------------------------------------------------ #
-    model.to(rank)
     if cfg.do_eval and (cfg.local_rank == -1 or torch.distributed.get_rank() == 0):
         
         eval_examples = processor.get_dev_examples(cfg.data.dir)
@@ -180,11 +179,12 @@ def main_worker(rank: int,
         model.eval()
 
         eval_dataloader = get_data(eval_features, cfg, logger)
-        eval_loop(eval_dataloader, model, rank, num_labels, tr_loss, global_step, cfg, compute_metrics, nb_tr_steps)
+        eval_loop(eval_dataloader, model, num_labels, tr_loss, global_step, cfg, compute_metrics, nb_tr_steps, device)
     destroy_process_group()
 
     
-    
+   
+ 
 if __name__ == "__main__":
     # Environment variables which need to be
     # set when using c10d's default "env"
@@ -196,16 +196,49 @@ if __name__ == "__main__":
     cfg.server_ip = ''
     cfg.server_port = ''
     cfg.local_rank = 0
+    cfg.distributed = True
     cfg.total_steps = 1000  # Adjust the number of training steps
     cfg.warmup_steps = 100  # Adjust the number of warm-up steps
+    cfg.num_labels = 2
+    cfg.batch_size = cfg.lm.train.batch_size
     # ------------------------------------------------------------------------ #
     # data params for config
     # ------------------------------------------------------------------------ #
 
-    world_size = torch.cuda.device_count()
-    logger.info(f"world_size: {world_size}")
-    mp.spawn(main_worker, args=(world_size, cfg), nprocs=world_size)
-    
+    try:
+        node_str = os.environ['SLURM_JOB_NODELIST'].replace('[', '').replace(']', '')
+        nodes = node_str.split(',')
+
+        cfg.world_size = len(nodes)
+        cfg.rank = int(os.environ['SLURM_PROCID'])
+
+    except KeyError as e:
+        # We are NOT using SLURM
+        cfg.world_size = 1
+        cfg.rank = 0
+        nodes = ["127.0.0.1"]
+
+    if cfg.distributed:
+        mp.set_start_method('forkserver')
+        print(cfg.rank)
+        port = np.random.randint(15000, 15025)
+        cfg.dist_url = 'tcp://{}:{}'.format(nodes[0], port)
+        print(cfg.dist_url)
+        cfg.dist_backend = 'nccl'
+        cfg.gpu = None
+
+    ngpus_per_node = torch.cuda.device_count()
+    cfg.num_workers = 11
+    cfg.ngpus_per_node = ngpus_per_node
+
+    if cfg.distributed:
+        cfg.world_size = ngpus_per_node * cfg.world_size
+        mp.spawn(main_worker, nprocs=ngpus_per_node, args=(ngpus_per_node, cfg))
+    else:
+        if ngpus_per_node == 1:
+            cfg.gpu = 0
+        main_worker(cfg.gpu, ngpus_per_node, cfg)
+        
     
 
 

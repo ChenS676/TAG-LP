@@ -76,8 +76,7 @@ def seed_everything(cfg: CN):
     torch.manual_seed(cfg.seed)
     torch.backends.cudnn.deterministic = False  
     
-    if cfg.n_gpu > 0:
-        torch.cuda.manual_seed_all(cfg.seed)
+    torch.cuda.manual_seed_all(cfg.seed)
         
 def check_cfg(cfg:CN):
     if not cfg.do_train and not cfg.do_eval:
@@ -100,18 +99,40 @@ import torch.multiprocessing as mp
 from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
+import torch.utils.data.distributed
+import torch.distributed as dist
+import torch.multiprocessing as mp
+import torch.nn as nn
 
-def ddp_setup(rank, world_size):
+def ddp_setup(cfg, ngpus_per_node, gpu, model):
     """
-    Args:
+    cfg:
         rank: Unique identifier of each process
         world_size: Total number of processes
     """
-    os.environ["MASTER_ADDR"] = "localhost"
-    os.environ["MASTER_PORT"] = "12355"
-    init_process_group(backend="nccl", rank=rank, world_size=world_size)
-    torch.cuda.set_device(rank)
+    cfg.multigpu = False
+    if cfg.distributed:
+        # Use DDP
+        cfg.multigpu = True
+        cfg.rank = cfg.rank * ngpus_per_node + gpu
+        dist.init_process_group(backend=cfg.dist_backend, init_method=cfg.dist_url,
+                                world_size=cfg.world_size, rank=cfg.rank)
+        cfg.batch_size = int(cfg.batch_size / ngpus_per_node)
+        # cfg.batch_size = 8
+        cfg.workers = int((cfg.num_workers + ngpus_per_node - 1) / ngpus_per_node)
+        print(cfg.gpu, cfg.rank, cfg.batch_size, cfg.workers)
+        torch.cuda.set_device(cfg.gpu)
+        model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
+        model = model.cuda(cfg.gpu)
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[cfg.gpu], output_device=cfg.gpu,
+                                                          find_unused_parameters=True)
 
+    elif cfg.gpu is None:
+        # Use DP
+        cfg.multigpu = True
+        model = model.cuda()
+        model = torch.nn.DataParallel(model)
+    return cfg
 
-def is_rank_zero(args):
-    return args.rank == 0
+def is_rank_zero(cfg):
+    return cfg.rank == 0

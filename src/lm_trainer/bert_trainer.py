@@ -27,7 +27,7 @@ from timebudget import timebudget
 timebudget.set_quiet()  # don't show measurements as they happen
 timebudget.report_at_exit()  # Generate report when the program exits
 from IPython import embed
-
+from yacs.config import CfgNode as CN
 # TODO update train script based on https://github.com/icmpnorequest/Pytorch_BERT_Text_Classification/blob/master/BERT_Text_Classification_CPU.ipynb
 # Issue acc is 0
 @timebudget
@@ -35,18 +35,18 @@ def train_loop(dataloader,
                model: torch.nn.Module,
                optimizer: torch.optim.Optimizer,
                scheduler, 
-               gpu_id: int, 
                num_labels, 
                num_train_optimization_steps, 
-               global_step):
-    
+               global_step, 
+               device):
     for _ in trange(int(cfg.lm.train.epochs), desc="Epoch"):
         tr_loss = 0
         nb_tr_examples, nb_tr_steps = 0, 0
         for step, batch in enumerate(tqdm(dataloader, desc="Iteration")):
-            batch = tuple(t.to(gpu_id) for t in batch)
+            batch = tuple(t.to(device) for t in batch)
             input_ids, input_mask, segment_ids, label_ids = batch
 
+            optimizer.zero_grad()
             # define a new function to compute loss values for both output_modes
             outputs = model(input_ids, segment_ids, input_mask, labels=None)
             loss = outputs[0]
@@ -61,7 +61,9 @@ def train_loop(dataloader,
                 optimizer.backward(loss)
             else:
                 loss.backward()
-
+                # optimizer.step()
+                
+            scheduler.step()
             tr_loss += loss.item()
             nb_tr_examples += input_ids.size(0)
             nb_tr_steps += 1
@@ -82,24 +84,24 @@ def train_loop(dataloader,
 @timebudget
 def eval_loop(eval_dataloader, 
               model, 
-              rank, 
               num_labels, 
               tr_loss, 
               global_step, 
               cfg, 
               compute_metrics,
-              nb_tr_steps):
+              nb_tr_steps, 
+              device='cpu'):
     # eval_loop(eval_dataloader, model, device, num_labels, tr_loss, global_step, cfg, compute_metrics, nb_tr_steps)
     eval_loss = 0
     nb_eval_steps = 0
     preds = []
     labels = []
-    model.to(rank)
+    model.to(device)
     for input_ids, input_mask, segment_ids, label_ids in tqdm(eval_dataloader, desc="Evaluating"):
-        input_ids = input_ids.to(rank)
-        input_mask = input_mask.to(rank)
-        segment_ids = segment_ids.to(rank)
-        label_ids = label_ids.to(rank)
+        input_ids = input_ids.to(device)
+        input_mask = input_mask.to(device)
+        segment_ids = segment_ids.to(device)
+        label_ids = label_ids.to(device)
 
         with torch.no_grad():
             logits = model(input_ids, segment_ids, input_mask, labels=None)[0]
@@ -140,4 +142,14 @@ def eval_loop(eval_dataloader,
         for key in sorted(result.keys()):
             logger.info("  %s = %s", key, str(result[key]))
             writer.write("%s = %s\n" % (key, str(result[key])))
-                
+
+
+def get_model(cfg: CN):
+
+    print('Loading BERT tokenizer...')
+    tokenizer = BertTokenizer.from_pretrained(cfg.lm.model.name, do_lower_case=cfg.lm.do_lower_case)
+    cache_dir = cfg.cache_dir if cfg.cache_dir else os.path.join(str(PYTORCH_PRETRAINED_BERT_CACHE), 'distributed_{}'.format(cfg.local_rank))
+    model = BertForSequenceClassification.from_pretrained(cfg.bert_model,
+              cache_dir=cache_dir,
+              num_labels=cfg.num_labels)
+    return model, tokenizer
