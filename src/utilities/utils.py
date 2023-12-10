@@ -56,6 +56,7 @@ def config_device(cfg: CN,
         torch.cuda.set_device(cfg.local_rank)
         device = torch.device("cuda", cfg.local_rank)
         cfg.n_gpu = 1
+        model.to(device)
         
     if cfg.fp16:
         model.half()
@@ -110,3 +111,7 @@ def ddp_setup(rank, world_size):
     os.environ["MASTER_PORT"] = "12355"
     init_process_group(backend="nccl", rank=rank, world_size=world_size)
     torch.cuda.set_device(rank)
+
+
+def is_rank_zero(args):
+    return args.rank == 0

@@ -54,7 +54,7 @@ from yacs.config import CfgNode as CN
 # TODO add more evaluation metrics
 
 @timebudget
-def main(rank: int,
+def main_worker(rank: int,
          world_size: int,
          cfg: CN):
     
@@ -204,5 +204,8 @@ if __name__ == "__main__":
 
     world_size = torch.cuda.device_count()
     logger.info(f"world_size: {world_size}")
-    mp.spawn(main, args=(world_size, cfg), nprocs=world_size)
+    mp.spawn(main_worker, args=(world_size, cfg), nprocs=world_size)
     
+    
+
+

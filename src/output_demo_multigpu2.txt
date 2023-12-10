@@ -1,0 +1,102 @@
+[10/Dec/2023 14:50:16] INFO - world_size: 2
+[10/Dec/2023 14:50:21] INFO - Added key: store_based_barrier_key:1 to store for rank: 1
+[10/Dec/2023 14:50:21] INFO - Added key: store_based_barrier_key:1 to store for rank: 0
+[10/Dec/2023 14:50:21] INFO - Rank 0: Completed store-based barrier for key:store_based_barrier_key:1 with 2 nodes.
+[10/Dec/2023 14:50:21] INFO - Rank 1: Completed store-based barrier for key:store_based_barrier_key:1 with 2 nodes.
+[10/Dec/2023 14:50:21] INFO - label_list: ['0', '1']
+[10/Dec/2023 14:50:21] INFO - label_list: ['0', '1']
+Loading BERT tokenizer...
+[10/Dec/2023 14:50:24] INFO - device: cuda:0 n_gpu: 1, distributed training: True, 16-bits training: False
+cuda:0
+[10/Dec/2023 14:50:24] INFO - model device None, rank 1
+[10/Dec/2023 14:50:24] INFO - load train tsv.
+Loading BERT tokenizer...
+[10/Dec/2023 14:50:24] INFO - device: cuda:0 n_gpu: 1, distributed training: True, 16-bits training: False
+cuda:0
+[10/Dec/2023 14:50:24] INFO - model device None, rank 0
+[10/Dec/2023 14:50:24] INFO - load train tsv.
+[10/Dec/2023 14:50:24] INFO - Writing example 0 of 31296
+[10/Dec/2023 14:50:24] INFO - *** Example ***
+[10/Dec/2023 14:50:24] INFO - number of examples: 31296
+[10/Dec/2023 14:50:24] INFO - guid: train-0
+[10/Dec/2023 14:50:24] INFO - tokens: [CLS] acquired abnormal ##ity [SEP] location of [SEP] experimental model of disease [SEP]
+[10/Dec/2023 14:50:24] INFO - input_ids: 101 2888 22832 1785 102 2450 1104 102 6700 2235 1104 3653 102 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+[10/Dec/2023 14:50:24] INFO - input_mask: 1 1 1 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+[10/Dec/2023 14:50:24] INFO - segment_ids: 0 0 0 0 0 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+[10/Dec/2023 14:50:24] INFO - label: 1 (id = 1)
+[10/Dec/2023 14:50:24] INFO - Writing example 0 of 31296
+[10/Dec/2023 14:50:24] INFO - *** Example ***
+[10/Dec/2023 14:50:24] INFO - number of examples: 31296
+[10/Dec/2023 14:50:24] INFO - guid: train-0
+[10/Dec/2023 14:50:24] INFO - tokens: [CLS] acquired abnormal ##ity [SEP] location of [SEP] experimental model of disease [SEP]
+[10/Dec/2023 14:50:24] INFO - input_ids: 101 2888 22832 1785 102 2450 1104 102 6700 2235 1104 3653 102 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+[10/Dec/2023 14:50:24] INFO - input_mask: 1 1 1 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+[10/Dec/2023 14:50:24] INFO - segment_ids: 0 0 0 0 0 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+[10/Dec/2023 14:50:24] INFO - label: 1 (id = 1)
+[10/Dec/2023 14:50:26] INFO - Writing example 10000 of 31296
+[10/Dec/2023 14:50:26] INFO - Writing example 10000 of 31296
+[10/Dec/2023 14:50:28] INFO - Writing example 20000 of 31296
+[10/Dec/2023 14:50:28] INFO - Writing example 20000 of 31296
+[10/Dec/2023 14:50:29] INFO - Writing example 30000 of 31296
+[10/Dec/2023 14:50:29] INFO - Writing example 30000 of 31296
+[10/Dec/2023 14:50:30] INFO - avg_len: 7.0
+[10/Dec/2023 14:50:30] INFO - ***** Running training *****
+[10/Dec/2023 14:50:30] INFO -   Batch size = 128
+[10/Dec/2023 14:50:30] INFO - avg_len: 5.0
+[10/Dec/2023 14:50:30] INFO - ***** Running training *****
+[10/Dec/2023 14:50:30] INFO -   Batch size = 128
+Training loss:  126.77984434366226 15648
+timebudget report...
+              main_worker: 86500.70ms for      1 calls
+               train_loop: 73061.22ms for      1 calls
+convert_examples_to_features: 5503.76ms for      1 calls
+                 get_data:  720.62ms for      1 calls
+         _create_examples:  177.46ms for      1 calls
+                _read_tsv:    6.53ms for      1 calls
+timebudget report...
+              main_worker: 86500.70ms for      1 calls
+               train_loop: 73061.22ms for      1 calls
+convert_examples_to_features: 5503.76ms for      1 calls
+                 get_data:  720.62ms for      1 calls
+         _create_examples:  177.46ms for      1 calls
+                _read_tsv:    6.53ms for      1 calls
+Training loss:  115.1170694231987 15648
+[10/Dec/2023 14:51:46] INFO - load train tsv.
+[10/Dec/2023 14:51:46] INFO - Writing example 0 of 652
+[10/Dec/2023 14:51:46] INFO - *** Example ***
+[10/Dec/2023 14:51:46] INFO - number of examples: 652
+[10/Dec/2023 14:51:46] INFO - guid: dev-0
+[10/Dec/2023 14:51:46] INFO - tokens: [CLS] nuclei ##c acid n ##uc ##leo ##side or n ##uc ##leo ##tide [SEP] affects [SEP] mental or behavioral d ##ys ##function [SEP]
+[10/Dec/2023 14:51:46] INFO - input_ids: 101 27349 1665 5190 183 21977 26918 5570 1137 183 21977 26918 23767 102 13974 102 4910 1137 18560 173 6834 26420 102 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+[10/Dec/2023 14:51:46] INFO - input_mask: 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+[10/Dec/2023 14:51:46] INFO - segment_ids: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+[10/Dec/2023 14:51:46] INFO - label: 1 (id = 1)
+[10/Dec/2023 14:51:46] INFO - avg_len: 9.0
+[10/Dec/2023 14:51:47] INFO - ***** Running training *****
+[10/Dec/2023 14:51:47] INFO -   Batch size = 128
+[10/Dec/2023 14:51:48] INFO - *** Example Eval ***
+[10/Dec/2023 14:51:48] INFO - preds: [1 1 1 1 1 1 1 1 1 1]
+[10/Dec/2023 14:51:48] INFO - labels: [1 1 1 1 1 1 1 1 1 1]
+[10/Dec/2023 14:51:48] INFO - ***** Eval results *****
+[10/Dec/2023 14:51:48] INFO -   acc = 1.0
+[10/Dec/2023 14:51:48] INFO -   eval_loss = 0.45020633935928345
+[10/Dec/2023 14:51:48] INFO -   global_step = 0
+[10/Dec/2023 14:51:48] INFO -   loss = 0.9359111335219407
+timebudget report...
+              main_worker: 88673.21ms for      1 calls
+               train_loop: 74067.54ms for      1 calls
+convert_examples_to_features: 2813.03ms for      2 calls
+                 get_data:  374.40ms for      2 calls
+                eval_loop:  666.50ms for      1 calls
+         _create_examples:   79.05ms for      2 calls
+                _read_tsv:    4.16ms for      2 calls
+timebudget report...
+              main_worker: 88673.21ms for      1 calls
+               train_loop: 74067.54ms for      1 calls
+convert_examples_to_features: 2813.03ms for      2 calls
+                 get_data:  374.40ms for      2 calls
+                eval_loop:  666.50ms for      1 calls
+         _create_examples:   79.05ms for      2 calls
+                _read_tsv:    4.16ms for      2 calls
+timebudget report...
+timebudget report...
