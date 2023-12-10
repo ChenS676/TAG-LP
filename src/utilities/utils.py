@@ -97,3 +97,20 @@ def create_folders(cfg: CN):
         raise ValueError("Output directory ({}) already exists and is not empty.".format(cfg.output_dir))
     if not os.path.exists(cfg.output_dir):
         os.makedirs(cfg.output_dir)
+        
+# adapted from https://github.com/pytorch/examples/blob/main/distributed/ddp-tutorial-series/multigpu.py
+import torch.multiprocessing as mp
+from torch.utils.data.distributed import DistributedSampler
+from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.distributed import init_process_group, destroy_process_group
+
+def ddp_setup(rank, world_size):
+    """
+    Args:
+        rank: Unique identifier of each process
+        world_size: Total number of processes
+    """
+    os.environ["MASTER_ADDR"] = "localhost"
+    os.environ["MASTER_PORT"] = "12355"
+    init_process_group(backend="nccl", rank=rank, world_size=world_size)
+    torch.cuda.set_device(rank)
