@@ -5,7 +5,6 @@
 
 from __future__ import absolute_import, division, print_function
 import logging
-import os
 import sys
 import numpy as np
 import torch
@@ -18,7 +17,12 @@ from torch.nn import CrossEntropyLoss, MSELoss
 from scipy.stats import pearsonr, spearmanr
 from sklearn.metrics import matthews_corrcoef, f1_score
 from sklearn import metrics
-
+import torch
+import torch.distributed as dist
+import torch.multiprocessing as mp
+import torch.nn as nn
+import torch.optim as optim
+from torch.nn.parallel import DistributedDataParallel as DDP
 from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE, WEIGHTS_NAME, CONFIG_NAME
 from kg_loader import KGProcessor, convert_examples_to_features
 from transformers import BertTokenizer, BertForSequenceClassification, BertConfig, AdamW, get_linear_schedule_with_warmup
@@ -27,24 +31,21 @@ import os, sys
 sys.path.insert(0, '..')
 from src.utilities.config import cfg, update_cfg
 logger = logging.getLogger(__name__)
-
 from timebudget import timebudget
 timebudget.set_quiet()  # don't show measurements as they happen
 timebudget.report_at_exit()  # Generate report when the program exits
-
 from IPython import embed
-
 from src.utilities.utils import compute_metrics, config_device, seed_everything, check_cfg, create_folders
 from src.loaders.data import get_data
 from src.lm_trainer.bert_trainer import train_loop, eval_loop
 
-import os
 
 
 # TODO https://wandb.ai/wandb_fc/articles/reports/Monitor-Improve-GPU-Usage-for-Model-Training--Vmlldzo1NDQzNjM3#:~:text=Try%20increasing%20your%20batch%20size&text=Gradients%20for%20a%20batch%20are,increase%20the%20speed%20of%20calculation.
 # improve GPU usage for model training
 # python -m torch.distributed.launch loaders/demo.py --do_train
-
+# TODO double check the evaluation method in KG, compare it with others 1. tangji liang lecture, 2. galkin new paper
+# TODO add more evaluation metrics
 @timebudget
 def main():
     # temporary solution for passing arguments
@@ -53,11 +54,13 @@ def main():
     cfg.bert_model = cfg.lm.model.name 
     cfg.server_ip = ''
     cfg.server_port = ''
+    cfg.local_rank = -1
     total_steps = 1000  # Adjust the number of training steps
     warmup_steps = 100  # Adjust the number of warm-up steps
     # ------------------------------------------------------------------------ #
     # data params for config
     # ------------------------------------------------------------------------ #
+
     processors = {
         "kg": KGProcessor,
     }
@@ -94,7 +97,6 @@ def main():
             
     cfg.train_batch_size = cfg.train_batch_size // cfg.gradient_accumulation_steps
     
-    
     # Prepare optimizer
     param_optimizer = list(model.named_parameters())
     no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
@@ -119,12 +121,6 @@ def main():
             optimizer = FP16_Optimizer(optimizer, static_loss_scale=cfg.loss_scale)
             
         scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps)
-    # else:   
-    #     optimizer = BertAdam(optimizer_grouped_parameters,
-    #                          lr=cfg.learning_rate,
-    #                          warmup=cfg.warmup_proportion,
-    #                          t_total=num_train_optimization_steps)
-    # replace BertAdam with AdamW
     # BertAdam - Bert version of Adam algorithm with weight decay fix, warmup and linear decay of the learning rate.
     else:
         optimizer = AdamW(model.parameters(),
@@ -177,32 +173,20 @@ def main():
         eval_examples = processor.get_dev_examples(cfg.data.dir)
         eval_features = convert_examples_to_features(
             eval_examples, label_list, cfg.lm.max_seq_length, tokenizer)
-        logger.info("***** Running evaluation *****")
-        logger.info("  Num examples = %d", len(eval_examples))
-        logger.info("  Batch size = %d", cfg.eval_batch_size)
-        all_input_ids = torch.tensor([f.input_ids for f in eval_features], dtype=torch.long)
-        all_input_mask = torch.tensor([f.input_mask for f in eval_features], dtype=torch.long)
-        all_segment_ids = torch.tensor([f.segment_ids for f in eval_features], dtype=torch.long)
-
-        all_label_ids = torch.tensor([f.label_id for f in eval_features], dtype=torch.long)
-
-        eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
-        # Run prediction for full data
-        eval_sampler = SequentialSampler(eval_data)
-        eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=cfg.eval_batch_size)
-        
+       
         # Load a trained model and vocabulary that you have fine-tuned
         model = BertForSequenceClassification.from_pretrained(cfg.output_dir, num_labels=num_labels)
         tokenizer = BertTokenizer.from_pretrained(cfg.output_dir, do_lower_case=cfg.lm.do_lower_case)
         model.to(device)
 
         model.eval()
-        eval_loss = 0
-        nb_eval_steps = 0
-        preds = []
 
-        eval_loop(eval_dataloader, model, device, num_labels, tr_loss, global_step, all_label_ids, cfg, compute_metrics, eval_loss, nb_eval_steps, nb_tr_steps, preds)
+        eval_dataloader = get_data(eval_features, cfg, logger)
+        eval_loop(eval_dataloader, model, device, num_labels, tr_loss, global_step, cfg, compute_metrics, nb_tr_steps)
                 
 if __name__ == "__main__":
+    # Environment variables which need to be
+    # set when using c10d's default "env"
+    # initialization mode.
     main()
     timebudget.report('main')

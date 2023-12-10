@@ -332,7 +332,7 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
 
         label_id = label_map[example.label]
 
-        if ex_index < 5 and print_info:
+        if ex_index < 1 and print_info:
             logger.info("*** Example ***")
             logger.info("number of examples: %d" % (len(examples)))
             logger.info("guid: %s" % (example.guid))

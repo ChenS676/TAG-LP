@@ -29,6 +29,7 @@ import torch
 from yacs.config import CfgNode as CN
 
 from timebudget import timebudget
+from IPython import embed
 
 def config_device(cfg: CN, logger, model):
     
@@ -44,15 +45,13 @@ def config_device(cfg: CN, logger, model):
                     level = logging.INFO if cfg.local_rank in [-1, 0] else logging.WARN)
     
     # multigpu
-    if cfg.local_rank != -1 and not cfg.no_cuda:
+    if cfg.local_rank == -1 or cfg.no_cuda:
         device = torch.device("cuda" if torch.cuda.is_available() and not cfg.no_cuda else "cpu")
         cfg.n_gpu = torch.cuda.device_count()
     else:
         torch.cuda.set_device(cfg.local_rank)
         device = torch.device("cuda", cfg.local_rank)
         cfg.n_gpu = 1
-        # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
-        torch.distributed.init_process_group(backend='nccl')
         
     if cfg.fp16:
         model.half()
@@ -62,11 +61,10 @@ def config_device(cfg: CN, logger, model):
             from apex.parallel import DistributedDataParallel as DDP
         except ImportError:
             raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use distributed and fp16 training.")
-
         model = DDP(model)
     elif cfg.n_gpu > 1:
         model = torch.nn.DataParallel(model)
-        model = torch.nn.parallel.data_parallel(model)
+       
     
     logger.info("device: {} n_gpu: {}, distributed training: {}, 16-bits training: {}".format(device, cfg.n_gpu, bool(cfg.local_rank != -1), cfg.fp16))
     return device

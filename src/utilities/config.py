@@ -96,7 +96,7 @@ def set_cfg(cfg):
     # Base learning rate
     cfg.lm.train.lr = 2e-5
     # Maximal number of epochs
-    cfg.lm.train.epochs = 2
+    cfg.lm.train.epochs = 1
     # The number of warmup steps
     cfg.lm.train.warmup_epochs = 0.6
     # Number of update steps between two evaluations

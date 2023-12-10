@@ -23,10 +23,11 @@ import os, sys
 sys.path.insert(0, '..')
 from src.utilities.config import cfg, update_cfg
 logger = logging.getLogger(__name__)
-
 from timebudget import timebudget
 timebudget.set_quiet()  # don't show measurements as they happen
 timebudget.report_at_exit()  # Generate report when the program exits
+from IPython import embed
+
 # TODO update train script based on https://github.com/icmpnorequest/Pytorch_BERT_Text_Classification/blob/master/BERT_Text_Classification_CPU.ipynb
 # Issue acc is 0
 @timebudget
@@ -79,13 +80,14 @@ def eval_loop(eval_dataloader,
               num_labels, 
               tr_loss, 
               global_step, 
-              all_label_ids, 
               cfg, 
               compute_metrics,
-              eval_loss,
-              nb_eval_steps, 
-              nb_tr_steps, 
-              preds):
+              nb_tr_steps):
+    # eval_loop(eval_dataloader, model, device, num_labels, tr_loss, global_step, cfg, compute_metrics, nb_tr_steps)
+    eval_loss = 0
+    nb_eval_steps = 0
+    preds = []
+    labels = []
     for input_ids, input_mask, segment_ids, label_ids in tqdm(eval_dataloader, desc="Evaluating"):
         input_ids = input_ids.to(device)
         input_mask = input_mask.to(device)
@@ -104,17 +106,23 @@ def eval_loop(eval_dataloader,
         nb_eval_steps += 1
         if len(preds) == 0:
             preds.append(logits.detach().cpu().numpy())
+            labels.append(label_ids.detach().cpu().numpy())
         else:
             preds[0] = np.append(
                 preds[0], logits.detach().cpu().numpy(), axis=0)
+            labels[0] = np.append(
+                labels[0], label_ids.detach().cpu().numpy(), axis=0)
 
     eval_loss = eval_loss / nb_eval_steps
     preds = preds[0]
 
     preds = np.argmax(preds, axis=1)
-    result = compute_metrics(preds, all_label_ids.numpy())
+    result = compute_metrics(preds, labels[0])
     loss = tr_loss/nb_tr_steps if cfg.do_train else None
 
+    logger.info("*** Example Eval ***")
+    logger.info(f"preds: {preds[:10]}")
+    logger.info(f"labels: {labels[0][:10]}")
     result['eval_loss'] = eval_loss
     result['global_step'] = global_step
     result['loss'] = loss
