@@ -51,6 +51,7 @@ def config_device(cfg: CN,
     if cfg.local_rank == -1 or cfg.no_cuda:
         device = torch.device("cuda" if torch.cuda.is_available() and not cfg.no_cuda else "cpu")
         cfg.n_gpu = torch.cuda.device_count()
+        model.to(rank)
     else:
         torch.cuda.set_device(cfg.local_rank)
         device = torch.device("cuda", cfg.local_rank)
@@ -58,12 +59,11 @@ def config_device(cfg: CN,
         
     if cfg.fp16:
         model.half()
-    model.to(device)
+   
     if cfg.local_rank != -1 and cfg.n_gpu > 1:
         model = DDP(model, device_ids=[rank])
         
     logger.info("device: {} n_gpu: {}, distributed training: {}, 16-bits training: {}".format(device, cfg.n_gpu, bool(cfg.local_rank != -1), cfg.fp16))
-    return device
 
 import random
 import numpy as np 

@@ -52,12 +52,14 @@ from yacs.config import CfgNode as CN
 # python -m torch.distributed.launch loaders/demo.py --do_train
 # TODO double check the evaluation method in KG, compare it with others 1. tangji liang lecture, 2. galkin new paper
 # TODO add more evaluation metrics
+
 @timebudget
 def main(rank: int,
          world_size: int,
          cfg: CN):
     
     ddp_setup(rank, world_size)
+    
     processors = {
         "kg": KGProcessor,
     }
@@ -78,13 +80,11 @@ def main(rank: int,
               cache_dir=cache_dir,
               num_labels=num_labels)
     
-    device = config_device(cfg, logger, model, rank)
+    config_device(cfg, logger, model, rank)
     logger.info(f"model device {print(model.device)}, rank {rank}")
     seed_everything(cfg)
     check_cfg(cfg)
     create_folders(cfg)
-    
-    logger.info(f"model device {print(model.device)}")
     
     train_examples = None
     num_train_optimization_steps = 0
@@ -140,10 +140,10 @@ def main(rank: int,
         # ------------------------------------------------------------------------ #
         # Train
         # ------------------------------------------------------------------------ #
-        model.to(device)
         model.train()
+        model.to(rank)
         #print(model)
-        gloabl_step, nb_tr_steps, tr_loss = train_loop(dataloader, model, optimizer, scheduler, device, num_labels, num_train_optimization_steps, global_step)
+        gloabl_step, nb_tr_steps, tr_loss = train_loop(dataloader, model, optimizer, scheduler, rank, num_labels, num_train_optimization_steps, global_step)
                 
     if cfg.do_train and (cfg.local_rank == -1 or torch.distributed.get_rank() == 0):
         # Save a trained model, configuration and tokenizer
@@ -162,12 +162,11 @@ def main(rank: int,
         tokenizer = BertTokenizer.from_pretrained(cfg.output_dir, do_lower_case=cfg.lm.do_lower_case)
     else:
         model = BertForSequenceClassification.from_pretrained(cfg.bert_model, num_labels=num_labels)
-    model.to(device)
-    
+
     # ------------------------------------------------------------------------ #
     # Evaluation
     # ------------------------------------------------------------------------ #
-        
+    model.to(rank)
     if cfg.do_eval and (cfg.local_rank == -1 or torch.distributed.get_rank() == 0):
         
         eval_examples = processor.get_dev_examples(cfg.data.dir)
@@ -177,13 +176,13 @@ def main(rank: int,
         # Load a trained model and vocabulary that you have fine-tuned
         model = BertForSequenceClassification.from_pretrained(cfg.output_dir, num_labels=num_labels)
         tokenizer = BertTokenizer.from_pretrained(cfg.output_dir, do_lower_case=cfg.lm.do_lower_case)
-        model.to(device)
 
         model.eval()
 
         eval_dataloader = get_data(eval_features, cfg, logger)
-        eval_loop(eval_dataloader, model, device, num_labels, tr_loss, global_step, cfg, compute_metrics, nb_tr_steps)
+        eval_loop(eval_dataloader, model, rank, num_labels, tr_loss, global_step, cfg, compute_metrics, nb_tr_steps)
     destroy_process_group()
+
     
     
 if __name__ == "__main__":
@@ -206,4 +205,4 @@ if __name__ == "__main__":
     world_size = torch.cuda.device_count()
     logger.info(f"world_size: {world_size}")
     mp.spawn(main, args=(world_size, cfg), nprocs=world_size)
-    timebudget.report('main')
+    

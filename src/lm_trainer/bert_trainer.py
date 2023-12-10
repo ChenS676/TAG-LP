@@ -31,12 +31,20 @@ from IPython import embed
 # TODO update train script based on https://github.com/icmpnorequest/Pytorch_BERT_Text_Classification/blob/master/BERT_Text_Classification_CPU.ipynb
 # Issue acc is 0
 @timebudget
-def train_loop(dataloader, model, optimizer, scheduler, device, num_labels, num_train_optimization_steps, global_step):
+def train_loop(dataloader, 
+               model: torch.nn.Module,
+               optimizer: torch.optim.Optimizer,
+               scheduler, 
+               gpu_id: int, 
+               num_labels, 
+               num_train_optimization_steps, 
+               global_step):
+    
     for _ in trange(int(cfg.lm.train.epochs), desc="Epoch"):
         tr_loss = 0
         nb_tr_examples, nb_tr_steps = 0, 0
         for step, batch in enumerate(tqdm(dataloader, desc="Iteration")):
-            batch = tuple(t.to(device) for t in batch)
+            batch = tuple(t.to(gpu_id) for t in batch)
             input_ids, input_mask, segment_ids, label_ids = batch
 
             # define a new function to compute loss values for both output_modes
@@ -74,7 +82,7 @@ def train_loop(dataloader, model, optimizer, scheduler, device, num_labels, num_
 @timebudget
 def eval_loop(eval_dataloader, 
               model, 
-              device, 
+              rank, 
               num_labels, 
               tr_loss, 
               global_step, 
@@ -86,11 +94,12 @@ def eval_loop(eval_dataloader,
     nb_eval_steps = 0
     preds = []
     labels = []
+    model.to(rank)
     for input_ids, input_mask, segment_ids, label_ids in tqdm(eval_dataloader, desc="Evaluating"):
-        input_ids = input_ids.to(device)
-        input_mask = input_mask.to(device)
-        segment_ids = segment_ids.to(device)
-        label_ids = label_ids.to(device)
+        input_ids = input_ids.to(rank)
+        input_mask = input_mask.to(rank)
+        segment_ids = segment_ids.to(rank)
+        label_ids = label_ids.to(rank)
 
         with torch.no_grad():
             logits = model(input_ids, segment_ids, input_mask, labels=None)[0]
