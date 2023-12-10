@@ -63,7 +63,6 @@ def train_loop(dataloader,
                 loss.backward()
                 # optimizer.step()
                 
-            scheduler.step()
             tr_loss += loss.item()
             nb_tr_examples += input_ids.size(0)
             nb_tr_steps += 1

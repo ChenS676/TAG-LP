@@ -8,33 +8,24 @@ import logging
 import sys
 import numpy as np
 import torch
-from torch.utils.data import (DataLoader, RandomSampler, SequentialSampler,
-                              TensorDataset)
-from torch.utils.data.distributed import DistributedSampler
-from tqdm import tqdm, trange
 
-from torch.nn import CrossEntropyLoss, MSELoss
-from scipy.stats import pearsonr, spearmanr
-from sklearn.metrics import matthews_corrcoef, f1_score
-from sklearn import metrics
 import torch
-import torch.distributed as dist
 import torch.multiprocessing as mp
-import torch.nn as nn
-import torch.optim as optim
 from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE, WEIGHTS_NAME, CONFIG_NAME
 from kg_loader import KGProcessor, convert_examples_to_features
-from transformers import BertTokenizer, BertForSequenceClassification, BertConfig, AdamW, get_linear_schedule_with_warmup
+from torch.optim import AdamW
+from transformers import BertTokenizer, BertForSequenceClassification, BertConfig, get_linear_schedule_with_warmup
 import logging
 import os, sys
 sys.path.insert(0, '..')
-from src.utilities.config import cfg, update_cfg
+from src.utilities.config import cfg
 logger = logging.getLogger(__name__)
 from timebudget import timebudget
 timebudget.set_quiet()  # don't show measurements as they happen
 timebudget.report_at_exit()  # Generate report when the program exits
+import warnings
 
-
+warnings.simplefilter("ignore")
 from IPython import embed
 # TODO https://wandb.ai/wandb_fc/articles/reports/Monitor-Improve-GPU-Usage-for-Model-Training--Vmlldzo1NDQzNjM3#:~:text=Try%20increasing%20your%20batch%20size&text=Gradients%20for%20a%20batch%20are,increase%20the%20speed%20of%20calculation.
 # improve GPU usage for model training
@@ -43,8 +34,6 @@ from IPython import embed
 # TODO add more evaluation metrics
 
 import torch.multiprocessing as mp
-from torch.utils.data.distributed import DistributedSampler
-from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
 
 
