@@ -31,7 +31,10 @@ from yacs.config import CfgNode as CN
 from timebudget import timebudget
 from IPython import embed
 
-def config_device(cfg: CN, logger, model):
+def config_device(cfg: CN, 
+                  logger: None, 
+                  model: torch.nn.Module,
+                  rank: int):   
     
     if cfg.server_ip and cfg.server_port:
         # Distant debugging - see https://code.visualstudio.com/docs/python/debugging#_attach-to-a-local-script
@@ -56,16 +59,9 @@ def config_device(cfg: CN, logger, model):
     if cfg.fp16:
         model.half()
     model.to(device)
-    if cfg.local_rank != -1:
-        try:
-            from apex.parallel import DistributedDataParallel as DDP
-        except ImportError:
-            raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use distributed and fp16 training.")
-        model = DDP(model)
-    elif cfg.n_gpu > 1:
-        model = torch.nn.DataParallel(model)
-       
-    
+    if cfg.local_rank != -1 and cfg.n_gpu > 1:
+        model = DDP(model, device_ids=[rank])
+        
     logger.info("device: {} n_gpu: {}, distributed training: {}, 16-bits training: {}".format(device, cfg.n_gpu, bool(cfg.local_rank != -1), cfg.fp16))
     return device
 

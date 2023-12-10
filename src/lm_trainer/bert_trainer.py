@@ -46,8 +46,6 @@ def train_loop(dataloader, model, optimizer, scheduler, device, num_labels, num_
             loss_fct = CrossEntropyLoss()
             loss = loss_fct(loss.view(-1, num_labels), label_ids.view(-1))
 
-            if cfg.n_gpu > 1:
-                loss = loss.mean() # mean() to average on multi-gpu.
             if cfg.gradient_accumulation_steps > 1:
                 loss = loss / cfg.gradient_accumulation_steps
 

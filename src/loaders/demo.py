@@ -22,7 +22,6 @@ import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
 import torch.optim as optim
-from torch.nn.parallel import DistributedDataParallel as DDP
 from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE, WEIGHTS_NAME, CONFIG_NAME
 from kg_loader import KGProcessor, convert_examples_to_features
 from transformers import BertTokenizer, BertForSequenceClassification, BertConfig, AdamW, get_linear_schedule_with_warmup
@@ -34,11 +33,18 @@ logger = logging.getLogger(__name__)
 from timebudget import timebudget
 timebudget.set_quiet()  # don't show measurements as they happen
 timebudget.report_at_exit()  # Generate report when the program exits
+
+import torch.multiprocessing as mp
+from torch.utils.data.distributed import DistributedSampler
+from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.distributed import init_process_group, destroy_process_group
+
 from IPython import embed
-from src.utilities.utils import compute_metrics, config_device, seed_everything, check_cfg, create_folders
+from src.utilities.utils import compute_metrics, config_device
+from src.utilities.utils import seed_everything, check_cfg, create_folders, ddp_setup
 from src.loaders.data import get_data
 from src.lm_trainer.bert_trainer import train_loop, eval_loop
-
+from yacs.config import CfgNode as CN
 
 
 # TODO https://wandb.ai/wandb_fc/articles/reports/Monitor-Improve-GPU-Usage-for-Model-Training--Vmlldzo1NDQzNjM3#:~:text=Try%20increasing%20your%20batch%20size&text=Gradients%20for%20a%20batch%20are,increase%20the%20speed%20of%20calculation.
@@ -47,20 +53,11 @@ from src.lm_trainer.bert_trainer import train_loop, eval_loop
 # TODO double check the evaluation method in KG, compare it with others 1. tangji liang lecture, 2. galkin new paper
 # TODO add more evaluation metrics
 @timebudget
-def main():
-    # temporary solution for passing arguments
-    cfg.gradient_accumulation_steps = 1
-    cfg.no_cuda = False
-    cfg.bert_model = cfg.lm.model.name 
-    cfg.server_ip = ''
-    cfg.server_port = ''
-    cfg.local_rank = -1
-    total_steps = 1000  # Adjust the number of training steps
-    warmup_steps = 100  # Adjust the number of warm-up steps
-    # ------------------------------------------------------------------------ #
-    # data params for config
-    # ------------------------------------------------------------------------ #
-
+def main(rank: int,
+         world_size: int,
+         cfg: CN):
+    
+    ddp_setup(rank, world_size)
     processors = {
         "kg": KGProcessor,
     }
@@ -81,10 +78,13 @@ def main():
               cache_dir=cache_dir,
               num_labels=num_labels)
     
-    device = config_device(cfg, logger, model)
+    device = config_device(cfg, logger, model, rank)
+    logger.info(f"model device {print(model.device)}, rank {rank}")
     seed_everything(cfg)
     check_cfg(cfg)
     create_folders(cfg)
+    
+    logger.info(f"model device {print(model.device)}")
     
     train_examples = None
     num_train_optimization_steps = 0
@@ -120,14 +120,14 @@ def main():
         else:
             optimizer = FP16_Optimizer(optimizer, static_loss_scale=cfg.loss_scale)
             
-        scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps)
+        scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=cfg.warmup_steps, num_training_steps=cfg.total_steps)
     # BertAdam - Bert version of Adam algorithm with weight decay fix, warmup and linear decay of the learning rate.
     else:
         optimizer = AdamW(model.parameters(),
                   lr = 5e-2, # args.learning_rate - default is 5e-5, our notebook had 2e-5
                   eps = 1e-8 # args.adam_epsilon  - default is 1e-8.
                 )
-        scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps)
+        scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=cfg.warmup_steps, num_training_steps=cfg.total_steps)
 
     global_step = 0
     nb_tr_steps = 0
@@ -183,10 +183,27 @@ def main():
 
         eval_dataloader = get_data(eval_features, cfg, logger)
         eval_loop(eval_dataloader, model, device, num_labels, tr_loss, global_step, cfg, compute_metrics, nb_tr_steps)
-                
+    destroy_process_group()
+    
+    
 if __name__ == "__main__":
     # Environment variables which need to be
     # set when using c10d's default "env"
     # initialization mode.
-    main()
+    # temporary solution for passing arguments
+    cfg.gradient_accumulation_steps = 1
+    cfg.no_cuda = False
+    cfg.bert_model = cfg.lm.model.name 
+    cfg.server_ip = ''
+    cfg.server_port = ''
+    cfg.local_rank = 0
+    cfg.total_steps = 1000  # Adjust the number of training steps
+    cfg.warmup_steps = 100  # Adjust the number of warm-up steps
+    # ------------------------------------------------------------------------ #
+    # data params for config
+    # ------------------------------------------------------------------------ #
+
+    world_size = torch.cuda.device_count()
+    logger.info(f"world_size: {world_size}")
+    mp.spawn(main, args=(world_size, cfg), nprocs=world_size)
     timebudget.report('main')
