@@ -1,35 +1,29 @@
-
 from __future__ import absolute_import, division, print_function
 import logging
 import os
 import sys
 import numpy as np
 import torch
-from torch.utils.data import (DataLoader, RandomSampler, SequentialSampler,
-                              TensorDataset)
-from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm, trange
-
-from torch.nn import CrossEntropyLoss, MSELoss
-from scipy.stats import pearsonr, spearmanr
-from sklearn.metrics import matthews_corrcoef, f1_score
-from sklearn import metrics
-
-from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE, WEIGHTS_NAME, CONFIG_NAME
-
-from transformers import BertTokenizer, BertForSequenceClassification, BertConfig, AdamW, get_linear_schedule_with_warmup
-import logging
-import os, sys
-sys.path.insert(0, '..')
-from src.utilities.config import cfg, update_cfg
-logger = logging.getLogger(__name__)
+from torch.nn import CrossEntropyLoss
+from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE
+from transformers import BertTokenizer, BertForSequenceClassification
 from timebudget import timebudget
-timebudget.set_quiet()  # don't show measurements as they happen
-timebudget.report_at_exit()  # Generate report when the program exits
 from IPython import embed
 from yacs.config import CfgNode as CN
-# TODO update train script based on https://github.com/icmpnorequest/Pytorch_BERT_Text_Classification/blob/master/BERT_Text_Classification_CPU.ipynb
-# Issue acc is 0
+from sklearn import metrics
+
+# Import local modules
+sys.path.insert(0, '..')
+from src.utilities.config import cfg, update_cfg
+
+logger = logging.getLogger(__name__)
+timebudget.set_quiet()  # Don't show measurements as they happen
+timebudget.report_at_exit()  # Generate a report when the program exits
+
+# TODO: Accelerate train
+# TODO: Test on CPU
+
 @timebudget
 def train_loop(dataloader, 
                model: torch.nn.Module,
@@ -141,7 +135,9 @@ def eval_loop(eval_dataloader,
         for key in sorted(result.keys()):
             logger.info("  %s = %s", key, str(result[key]))
             writer.write("%s = %s\n" % (key, str(result[key])))
-
+    print("Triple classification acc is : ")
+    print(f"labels shape: {labels[0].shape}, preds shape: {preds.shape}")
+    print(metrics.accuracy_score(labels[0], preds))
 
 def get_model(cfg: CN):
 

@@ -132,6 +132,10 @@ def ddp_setup(cfg, ngpus_per_node, gpu, model):
         cfg.multigpu = True
         model = model.cuda()
         model = torch.nn.DataParallel(model)
+    
+    if cfg.gpu is not None:  # If a gpu is set by user: NO PARALLELISM!!
+        torch.cuda.set_device(cfg.gpu)
+        model = model.cuda(cfg.gpu)
     return cfg
 
 def is_rank_zero(cfg):

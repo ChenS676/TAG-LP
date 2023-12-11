@@ -31,6 +31,7 @@ def set_cfg(cfg):
     
     cfg.do_train = True
     cfg.do_eval = True
+    cfg.do_predict = True
     cfg.train_batch_size = 128
     cfg.gradient_accumulation_steps = 1
     # cfg.num_train_epochs = 3.0    
@@ -82,7 +83,7 @@ def set_cfg(cfg):
     cfg.lm.do_lower_case = False 
     cfg.lm.model.feat_shrink = ""
     cfg.lm.max_seq_length = 256
-    cfg.lm.learning_rate = 9e-5
+    cfg.lm.learning_rate = 5e-5
     cfg.lm.warmup_proportion = 0.1
     
     # ------------------------------------------------------------------------ #
