@@ -792,6 +792,7 @@ def main():
         # Run prediction for full data
         eval_sampler = SequentialSampler(eval_data)
         eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=cfg.eval_batch_size)
+
         # Load a trained model and vocabulary that you have fine-tuned
         model = BertForSequenceClassification.from_pretrained(cfg.output_dir, num_labels=num_labels)
         tokenizer = BertTokenizer.from_pretrained(cfg.output_dir, do_lower_case=cfg.do_lower_case)
@@ -860,42 +861,6 @@ def main():
             hits_left.append([])
             hits_right.append([])
             hits.append([])
-        '''
-        file_prefix = str(cfg.data_dir[7:])
-        f = open(file_prefix + '_ranks.txt','r')
-        lines = f.readlines()
-        for line in lines:
-            temp = line.strip().split()
-            rank1 = int(temp[0])
-            ranks_left.append(rank1+1)
-            print('left: ', rank1)
-            ranks.append(rank1+1)
-            if rank1 < 10:
-                top_ten_hit_count += 1
-            rank2 = int(temp[1])
-            ranks.append(rank2+1)
-            ranks_right.append(rank2+1)
-            print('right: ', rank2)
-            print('mean rank until now: ', np.mean(ranks))
-            if rank2 < 10:
-                top_ten_hit_count += 1
-            print("hit@10 until now: ", top_ten_hit_count * 1.0 / len(ranks))                
-            for hits_level in range(10):
-                if rank1 <= hits_level:
-                    hits[hits_level].append(1.0)
-                    hits_left[hits_level].append(1.0)
-                else:
-                    hits[hits_level].append(0.0)
-                    hits_left[hits_level].append(0.0)
-
-                if rank2 <= hits_level:
-                    hits[hits_level].append(1.0)
-                    hits_right[hits_level].append(1.0)
-                else:
-                    hits[hits_level].append(0.0)
-                    hits_right[hits_level].append(0.0)
-    
-        '''
         for test_triple in test_triples:
             head = test_triple[0]
             relation = test_triple[1]

@@ -20,18 +20,20 @@ from src.utilities.config import cfg, update_cfg
 logger = logging.getLogger(__name__)
 timebudget.set_quiet()  # Don't show measurements as they happen
 timebudget.report_at_exit()  # Generate a report when the program exits
-
+from pdb import set_trace as pdb
 # TODO: Accelerate train
 # TODO: Test on CPU
 
 @timebudget
-def train_loop(dataloader, 
+def train_loop(cfg: CN,
+               dataloader, 
                model: torch.nn.Module,
                optimizer: torch.optim.Optimizer,
                scheduler, 
                num_labels, 
                num_train_optimization_steps, 
                global_step, 
+               logger,
                device):
     for _ in trange(int(cfg.lm.train.epochs), desc="Epoch"):
         tr_loss = 0
@@ -71,25 +73,26 @@ def train_loop(dataloader,
                 optimizer.step()
                 optimizer.zero_grad()
                 global_step += 1
-        print("Training loss: ", tr_loss, nb_tr_examples)
-    return global_step, nb_tr_steps, tr_loss
+            logger.info(f"Training loss: {loss.item()}")
+            avg_loss = tr_loss/nb_tr_steps if cfg.do_train else None
+    logger.info(f"Average loss: {avg_loss}")
+    return model, optimizer, scheduler, global_step
  
 @timebudget
 def eval_loop(eval_dataloader, 
               model, 
               num_labels, 
-              tr_loss, 
               global_step, 
               cfg, 
               compute_metrics,
-              nb_tr_steps, 
               device='cpu'):
-    # eval_loop(eval_dataloader, model, device, num_labels, tr_loss, global_step, cfg, compute_metrics, nb_tr_steps)
+
     eval_loss = 0
     nb_eval_steps = 0
     preds = []
     labels = []
     model.to(device)
+    
     for input_ids, input_mask, segment_ids, label_ids in tqdm(eval_dataloader, desc="Evaluating"):
         input_ids = input_ids.to(device)
         input_mask = input_mask.to(device)
@@ -98,7 +101,6 @@ def eval_loop(eval_dataloader,
 
         with torch.no_grad():
             logits = model(input_ids, segment_ids, input_mask, labels=None)[0]
-
         # create eval loss and other metric required by the task
         loss_fct = CrossEntropyLoss()
         tmp_eval_loss = loss_fct(logits.view(-1, num_labels), label_ids.view(-1))
@@ -106,6 +108,7 @@ def eval_loop(eval_dataloader,
         
         eval_loss += tmp_eval_loss.mean().item()
         nb_eval_steps += 1
+        
         if len(preds) == 0:
             preds.append(logits.detach().cpu().numpy())
             labels.append(label_ids.detach().cpu().numpy())
@@ -114,20 +117,18 @@ def eval_loop(eval_dataloader,
                 preds[0], logits.detach().cpu().numpy(), axis=0)
             labels[0] = np.append(
                 labels[0], label_ids.detach().cpu().numpy(), axis=0)
-
+            
     eval_loss = eval_loss / nb_eval_steps
     preds = preds[0]
 
     preds = np.argmax(preds, axis=1)
     result = compute_metrics(preds, labels[0])
-    loss = tr_loss/nb_tr_steps if cfg.do_train else None
 
     logger.info("*** Example Eval ***")
     logger.info(f"preds: {preds[:10]}")
     logger.info(f"labels: {labels[0][:10]}")
     result['eval_loss'] = eval_loss
     result['global_step'] = global_step
-    result['loss'] = loss
 
     output_eval_file = os.path.join(cfg.output_dir, "eval_results.txt")
     with open(output_eval_file, "w") as writer:
@@ -135,9 +136,10 @@ def eval_loop(eval_dataloader,
         for key in sorted(result.keys()):
             logger.info("  %s = %s", key, str(result[key]))
             writer.write("%s = %s\n" % (key, str(result[key])))
-    print("Triple classification acc is : ")
-    print(f"labels shape: {labels[0].shape}, preds shape: {preds.shape}")
-    print(metrics.accuracy_score(labels[0], preds))
+    logger.info("Triple classification acc is : ")
+    logger.info(f"labels shape: {labels[0].shape}, preds shape: {preds.shape}")
+    logger.info(f"acc score: {metrics.accuracy_score(labels[0], preds)}")
+
 
 def get_model(cfg: CN):
 
@@ -148,3 +150,85 @@ def get_model(cfg: CN):
               cache_dir=cache_dir,
               num_labels=cfg.num_labels)
     return model, tokenizer
+
+
+def test_loop_left(test_dataloader, model, device, ranks, ranks_left, top_ten_hit_count):
+
+    preds = []
+    labels = []
+    for input_ids, input_mask, segment_ids, label_ids in test_dataloader:
+
+        input_ids = input_ids.to(device)
+        input_mask = input_mask.to(device)
+        segment_ids = segment_ids.to(device)
+        label_ids = label_ids.to(device)
+        
+        with torch.no_grad():
+            logits = model(input_ids, segment_ids, input_mask, labels=None)[0]
+        if len(preds) == 0:
+            preds.append(logits.detach().cpu().numpy())
+            labels.append(label_ids.detach().cpu().numpy())
+        else:
+            preds[0] = np.append(
+                preds[0], logits.detach().cpu().numpy(), axis=0)
+            labels[0] = np.append(
+                labels[0], label_ids.detach().cpu().numpy(), axis=0)
+
+    preds = preds[0]
+    # get the dimension corresponding to current label 1
+    #print(preds, preds.shape)
+    rel_values = preds[:, labels[0]]
+    rel_values = torch.tensor(rel_values)
+    #print(rel_values, rel_values.shape)
+    _, cfgort1 = torch.sort(rel_values, descending=True)
+    #print(max_values)
+    #print(cfgort1)
+    cfgort1 = cfgort1.cpu().numpy()
+    rank1 = np.where(cfgort1 == 0)[0][0]
+    ranks.append(rank1+1)
+    ranks_left.append(rank1+1)
+    if rank1 < 10:
+        top_ten_hit_count += 1
+        
+    return ranks, ranks_left, rank1, top_ten_hit_count
+
+
+def test_loop_right(test_dataloader, model, device, ranks, ranks_right, top_ten_hit_count):
+    preds = []        
+    labels = []
+    for i, (input_ids, input_mask, segment_ids, label_ids) in enumerate(test_dataloader):
+    
+        input_ids = input_ids.to(device)
+        input_mask = input_mask.to(device)
+        segment_ids = segment_ids.to(device)
+        label_ids = label_ids.to(device)
+        
+        with torch.no_grad():
+            logits = model(input_ids, segment_ids, input_mask, labels=None)[0]
+
+        if len(preds) == 0:
+            preds.append(logits.detach().cpu().numpy())
+            labels.append(label_ids.detach().cpu().numpy())
+        else:
+            preds[0] = np.append(
+                preds[0], logits.detach().cpu().numpy(), axis=0)
+            labels[0] = np.append(
+                labels[0], label_ids.detach().cpu().numpy(), axis=0)
+
+    embed()
+    preds = preds[0]
+    # get the dimension corresponding to current label 1
+    rel_values = preds[:, labels[0]]
+    rel_values = torch.tensor(rel_values)
+    _, cfgort1 = torch.sort(rel_values, descending=True)
+    cfgort1 = cfgort1.cpu().numpy()
+    rank2 = np.where(cfgort1 == 0)[0][0]
+    ranks.append(rank2+1)
+    ranks_right.append(rank2+1)
+    logger.info(f'right: {rank2}')
+    logger.info(f'mean rank until now: {np.mean(ranks)}')
+    if rank2 < 10:
+        top_ten_hit_count += 1
+    logger.info(f"hit@10 until now: {top_ten_hit_count * 1.0 / len(ranks)}")
+    
+    return ranks, ranks_right, rank2, top_ten_hit_count

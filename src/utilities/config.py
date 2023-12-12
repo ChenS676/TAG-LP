@@ -26,16 +26,15 @@ def set_cfg(cfg):
     cfg.cache_dir = ''
     cfg.output_dir = './output_umls/'
     # ------------------------------------------------------------------------ #
-    # Train options
+    # Train options check demo
     # ------------------------------------------------------------------------ #
-    
-    cfg.do_train = True
-    cfg.do_eval = True
-    cfg.do_predict = True
-    cfg.train_batch_size = 128
-    cfg.gradient_accumulation_steps = 1
-    # cfg.num_train_epochs = 3.0    
-    cfg.eval_batch_size = 8 
+    # cfg.do_train = True
+    # cfg.do_eval = True
+    # cfg.do_predict = True
+    # cfg.train_batch_size = 128
+    # cfg.gradient_accumulation_steps = 1
+    # # cfg.num_train_epochs = 3.0    
+    # cfg.eval_batch_size = 8 
     
     
     cfg.gnn = CN()
@@ -97,7 +96,7 @@ def set_cfg(cfg):
     # Base learning rate
     cfg.lm.train.lr = 2e-5
     # Maximal number of epochs
-    cfg.lm.train.epochs = 1
+    cfg.lm.train.epochs = 2
     # The number of warmup steps
     cfg.lm.train.warmup_epochs = 0.6
     # Number of update steps between two evaluations

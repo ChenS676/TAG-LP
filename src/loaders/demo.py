@@ -39,11 +39,11 @@ from torch.nn import CrossEntropyLoss, MSELoss
 from scipy.stats import pearsonr, spearmanr
 from sklearn.metrics import matthews_corrcoef, f1_score
 from sklearn import metrics
-
+from tqdm import tqdm 
 from src.utilities.utils import compute_metrics, config_device
 from src.utilities.utils import seed_everything, check_cfg, create_folders, ddp_setup
-from src.loaders.data import get_data
-from src.lm_trainer.bert_trainer import train_loop, eval_loop, get_model
+from src.loaders.data import get_data, create_corrupt_list
+from src.lm_trainer.bert_trainer import train_loop, eval_loop, get_model, test_loop_left, test_loop_right
 from src.loaders.kg_loader import KGProcessor, convert_examples_to_features
 
 
@@ -63,12 +63,12 @@ def main_worker(gpu: int,
     processors = {
         "kg": KGProcessor,
     }
-    processor = processors[cfg.task_name]()
     
-    label_list = processor.get_labels(cfg.data.dir)
+    processor = processors[cfg.task_name](cfg.data.dir)
+    label_list = processor.get_labels()
     num_labels = len(label_list)
     logging.info("label_list: {}".format(label_list))
-    entity_list = processor.get_entities(cfg.data.dir)
+    entity_list = processor.get_entities()
     print(entity_list)
     # ------------------------------------------------------------------------ #
     # Model 
@@ -80,7 +80,7 @@ def main_worker(gpu: int,
     train_examples = None
     num_train_optimization_steps = 0
     if cfg.do_train:
-        train_examples = processor.get_train_examples(cfg.data.dir)
+        train_examples = processor.get_train_examples()
         num_train_optimization_steps = int(
             len(train_examples) / cfg.train_batch_size / cfg.gradient_accumulation_steps) * cfg.lm.train.epochs
         if cfg.local_rank != -1:
@@ -112,7 +112,7 @@ def main_worker(gpu: int,
             optimizer = FP16_Optimizer(optimizer, static_loss_scale=cfg.loss_scale)
             
         scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=cfg.warmup_steps, num_training_steps=cfg.total_steps)
-    # BertAdam - Bert version of Adam algorithm with weight decay fix, warmup and linear decay of the learning rate.
+
     else:
         optimizer = AdamW(model.parameters(),
                   lr = 5e-2, # cfg.learning_rate - default is 5e-5, our notebook had 2e-5
@@ -121,8 +121,6 @@ def main_worker(gpu: int,
         scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=cfg.warmup_steps, num_training_steps=cfg.total_steps)
 
     global_step = 0
-    nb_tr_steps = 0
-    tr_loss = 0
         
     if cfg.do_train:
         features = convert_examples_to_features(
@@ -133,7 +131,7 @@ def main_worker(gpu: int,
         # ------------------------------------------------------------------------ #
         model.train()
         #print(model)
-        gloabl_step, nb_tr_steps, tr_loss = train_loop(dataloader, model, optimizer, scheduler, num_labels, num_train_optimization_steps, global_step, device)
+        model, optimizer, scheduler, global_step = train_loop(cfg, dataloader, model, optimizer, scheduler, num_labels, num_train_optimization_steps, global_step, logger, device)
                 
     if cfg.do_train and (cfg.local_rank == -1 or torch.distributed.get_rank() == 0):
         # Save a trained model, configuration and tokenizer
@@ -157,8 +155,7 @@ def main_worker(gpu: int,
     # Evaluation
     # ------------------------------------------------------------------------ #
     if cfg.do_eval and (cfg.local_rank == -1 or torch.distributed.get_rank() == 0):
-        
-        eval_examples = processor.get_dev_examples(cfg.data.dir)
+        eval_examples = processor.get_dev_examples()
         eval_features = convert_examples_to_features(
             eval_examples, label_list, cfg.lm.max_seq_length, tokenizer)
        
@@ -169,32 +166,25 @@ def main_worker(gpu: int,
         model.eval()
 
         eval_dataloader = get_data(eval_features, cfg, logger)
-        eval_loop(eval_dataloader, model, num_labels, tr_loss, global_step, cfg, compute_metrics, nb_tr_steps, device)
+        eval_loop(eval_dataloader, model, num_labels, global_step, cfg, compute_metrics, device)
     
     if cfg.do_predict and (cfg.local_rank == -1 or torch.distributed.get_rank() == 0):
-
-        train_triples = processor.get_train_triples(cfg.data.dir)
-        dev_triples = processor.get_dev_triples(cfg.data.dir)
-        test_triples = processor.get_test_triples(cfg.data.dir)
-        all_triples = train_triples + dev_triples + test_triples
-
-        all_triples_str_set = set()
-        for triple in all_triples:
-            triple_str = '\t'.join(triple)
-            all_triples_str_set.add(triple_str)
-
-        pred_examples = processor.get_test_examples(cfg.data.dir)
-        pred_features = convert_examples_to_features(
-            pred_examples, label_list, cfg.lm.max_seq_length, tokenizer)
-        pred_dataloader = get_data(eval_features, cfg, logger)
-
+        
         # Load a trained model and vocabulary that you have fine-tuned
         model = BertForSequenceClassification.from_pretrained(cfg.output_dir, num_labels=num_labels)
         tokenizer = BertTokenizer.from_pretrained(cfg.output_dir, do_lower_case=cfg.lm.do_lower_case)
         
         model.to(device)
         model.eval()
-        eval_loop(pred_dataloader, model, num_labels, tr_loss, global_step, cfg, compute_metrics, nb_tr_steps, device)
+
+        all_triples_str_set, test_triples = processor.get_all_triples_str_set()
+        
+        pred_examples = processor.get_test_examples()
+        pred_features = convert_examples_to_features(
+            pred_examples, label_list, cfg.lm.max_seq_length, tokenizer)
+        pred_dataloader = get_data(pred_features, cfg, logger)
+
+        eval_loop(pred_dataloader, model, num_labels, global_step, cfg, compute_metrics, device)
 
         # run link prediction
         ranks = []
@@ -207,157 +197,35 @@ def main_worker(gpu: int,
 
         top_ten_hit_count = 0
 
+        # wtf
         for i in range(10):
             hits_left.append([])
             hits_right.append([])
             hits.append([])
 
-        '''
-        file_prefix = str(cfg.data_dir[7:])
-        f = open(file_prefix + '_ranks.txt','r')
-        lines = f.readlines()
-        for line in lines:
-            temp = line.strip().split()
-            rank1 = int(temp[0])
-            ranks_left.append(rank1+1)
-            print('left: ', rank1)
-            ranks.append(rank1+1)
-            if rank1 < 10:
-                top_ten_hit_count += 1
-            rank2 = int(temp[1])
-            ranks.append(rank2+1)
-            ranks_right.append(rank2+1)
-            print('right: ', rank2)
-            print('mean rank until now: ', np.mean(ranks))
-            if rank2 < 10:
-                top_ten_hit_count += 1
-            print("hit@10 until now: ", top_ten_hit_count * 1.0 / len(ranks))                
-            for hits_level in range(10):
-                if rank1 <= hits_level:
-                    hits[hits_level].append(1.0)
-                    hits_left[hits_level].append(1.0)
-                else:
-                    hits[hits_level].append(0.0)
-                    hits_left[hits_level].append(0.0)
+        for test_triple in tqdm(test_triples, desc="Test Triples"):
 
-                if rank2 <= hits_level:
-                    hits[hits_level].append(1.0)
-                    hits_right[hits_level].append(1.0)
-                else:
-                    hits[hits_level].append(0.0)
-                    hits_right[hits_level].append(0.0)
-    
-        '''
-        for test_triple in test_triples:
-            head = test_triple[0]
-            relation = test_triple[1]
-            tail = test_triple[2]
-            #print(test_triple, head, relation, tail)
-
-            head_corrupt_list = [test_triple]
-            for corrupt_ent in entity_list:
-                if corrupt_ent != head:
-                    tmp_triple = [corrupt_ent, relation, tail]
-                    tmp_triple_str = '\t'.join(tmp_triple)
-                    if tmp_triple_str not in all_triples_str_set:
-                        # may be slow
-                        head_corrupt_list.append(tmp_triple)
-
-            tmp_examples = processor._create_examples(head_corrupt_list, "test", cfg.data.dir)
-            print(len(tmp_examples))
+            # print(test_triple, head, relation, tail)
+            head_corrupt_list = create_corrupt_list(test_triple, entity_list, 'head', all_triples_str_set)
+            logger.info(f"head_corrupt_list: {len(head_corrupt_list)}")
+            tmp_examples = processor._create_examples(head_corrupt_list, "test")
             tmp_features = convert_examples_to_features(tmp_examples, label_list, cfg.lm.max_seq_length, tokenizer, print_info = False)
             test_dataloader = get_data(tmp_features, cfg, logger)
             model.eval()
-
-            preds = []
-            labels = []
-            for input_ids, input_mask, segment_ids, label_ids in test_dataloader:
-
-                input_ids = input_ids.to(device)
-                input_mask = input_mask.to(device)
-                segment_ids = segment_ids.to(device)
-                label_ids = label_ids.to(device)
-                
-                with torch.no_grad():
-                    logits = model(input_ids, segment_ids, input_mask, labels=None)[0]
-                if len(preds) == 0:
-                    batch_logits = logits.detach().cpu().numpy()
-                    preds.append(batch_logits)
-                    labels.append(label_ids.detach().cpu().numpy())
-                else:
-                    batch_logits = logits.detach().cpu().numpy()
-                    preds[0] = np.append(preds[0], batch_logits, axis=0)      
-                    labels[0] = np.append(labels.detach().cpu().numpy()[0], label_ids, axis=0)
-
-            preds = preds[0]
-            # get the dimension corresponding to current label 1
-            #print(preds, preds.shape)
-            rel_values = preds[:, labels[0]]
-            rel_values = torch.tensor(rel_values)
-            #print(rel_values, rel_values.shape)
-            _, cfgort1 = torch.sort(rel_values, descending=True)
-            #print(max_values)
-            #print(cfgort1)
-            cfgort1 = cfgort1.cpu().numpy()
-            rank1 = np.where(cfgort1 == 0)[0][0]
-            print('left: ', rank1)
-            ranks.append(rank1+1)
-            ranks_left.append(rank1+1)
-            if rank1 < 10:
-                top_ten_hit_count += 1
-
-            tail_corrupt_list = [test_triple]
-            for corrupt_ent in entity_list:
-                if corrupt_ent != tail:
-                    tmp_triple = [head, relation, corrupt_ent]
-                    tmp_triple_str = '\t'.join(tmp_triple)
-                    if tmp_triple_str not in all_triples_str_set:
-                        # may be slow
-                        tail_corrupt_list.append(tmp_triple)
-
-            tmp_examples = processor._create_examples(tail_corrupt_list, "test", cfg.data.dir)
+            ranks, ranks_left, rank1, top_ten_hit_count = test_loop_left(test_dataloader, model, device, ranks, ranks_left, top_ten_hit_count)
+            
+            embed()
+            tail_corrupt_list = create_corrupt_list(test_triple, entity_list, 'tail', all_triples_str_set)
+            logger.info(f"tail_corrupt_list: {len(tail_corrupt_list)}")
+            tmp_examples = processor._create_examples(tail_corrupt_list, "test")
             #print(len(tmp_examples))
             tmp_features = convert_examples_to_features(tmp_examples, label_list, cfg.lm.max_seq_length, tokenizer, print_info = False)
             test_dataloader = get_data(tmp_features, cfg, logger)
             model.eval()
-            preds = []        
+            ranks, ranks_right, rank2, top_ten_hit_count = test_loop_right(test_dataloader, model, device, ranks, ranks_right, top_ten_hit_count)
 
-            for input_ids, input_mask, segment_ids, label_ids in test_dataloader:
-            
-                input_ids = input_ids.to(device)
-                input_mask = input_mask.to(device)
-                segment_ids = segment_ids.to(device)
-                label_ids = label_ids.to(device)
-                
-                with torch.no_grad():
-                    logits = model(input_ids, segment_ids, input_mask, labels=None)[0]
-                if len(preds) == 0:
-                    batch_logits = logits.detach().cpu().numpy()
-                    preds.append(batch_logits)
-                    labels.append(label_ids.detach().cpu().numpy())
-                else:
-                    batch_logits = logits.detach().cpu().numpy()
-                    preds[0] = np.append(preds[0], batch_logits, axis=0)      
-                    labels[0] = np.append(labels.detach().cpu().numpy()[0], label_ids, axis=0)
-
-
-            preds = preds[0]
-            # get the dimension corresponding to current label 1
-            rel_values = preds[:, labels[0]]
-            rel_values = torch.tensor(rel_values)
-            _, cfgort1 = torch.sort(rel_values, descending=True)
-            cfgort1 = cfgort1.cpu().numpy()
-            rank2 = np.where(cfgort1 == 0)[0][0]
-            ranks.append(rank2+1)
-            ranks_right.append(rank2+1)
-            print('right: ', rank2)
-            print('mean rank until now: ', np.mean(ranks))
-            if rank2 < 10:
-                top_ten_hit_count += 1
-            print("hit@10 until now: ", top_ten_hit_count * 1.0 / len(ranks))
 
             file_prefix = str(cfg.data.dir[7:]) + "_" + str(cfg.train_batch_size) + "_" + str(cfg.lm.learning_rate) + "_" + str(cfg.lm.max_seq_length) + "_" + str(cfg.lm.train.epochs)
-
             f = open(file_prefix + '_ranks.txt','a')
             f.write(str(rank1) + '\t' + str(rank2) + '\n')
             f.close()
@@ -389,7 +257,8 @@ def main_worker(gpu: int,
         logger.info('Mean reciprocal rank right: {0}'.format(np.mean(1./np.array(ranks_right))))
         logger.info('Mean reciprocal rank: {0}'.format(np.mean(1./np.array(ranks))))            
 
-    destroy_process_group()
+    if torch.distributed.is_initialized():
+        destroy_process_group()
 
     
    
@@ -399,18 +268,27 @@ if __name__ == "__main__":
     # set when using c10d's default "env"
     # initialization mode.
     # temporary solution for passing arguments
-    cfg.gradient_accumulation_steps = 1
+
     cfg.no_cuda = False
     cfg.bert_model = cfg.lm.model.name 
     cfg.server_ip = ''
     cfg.server_port = ''
-    cfg.local_rank = 0
-    cfg.distributed = True
+    cfg.local_rank = -1 # 0 distributed 
+    cfg.distributed = False # True distributed
     cfg.total_steps = 1000  # Adjust the number of training steps
     cfg.warmup_steps = 100  # Adjust the number of warm-up steps
-    cfg.num_labels = 2
-    cfg.batch_size = cfg.lm.train.batch_size
-    cfg.gpu = None
+    cfg.num_labels = 2 
+    cfg.batch_size = cfg.lm.train.batch_size # cause confusion
+    cfg.gpu = None # None distributed
+    
+    cfg.do_train = True
+    cfg.do_eval = True
+    cfg.do_predict = True
+    cfg.train_batch_size = 128
+    cfg.gradient_accumulation_steps = 1
+    # cfg.num_train_epochs = 3.0    
+    cfg.eval_batch_size = 8 
+    cfg.lm.train.epochs = 1
     # ------------------------------------------------------------------------ #
     # data params for config
     # ------------------------------------------------------------------------ #

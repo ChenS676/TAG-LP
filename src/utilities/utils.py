@@ -79,7 +79,7 @@ def seed_everything(cfg: CN):
     torch.cuda.manual_seed_all(cfg.seed)
         
 def check_cfg(cfg:CN):
-    if not cfg.do_train and not cfg.do_eval:
+    if (not cfg.do_train) and (not cfg.do_eval):
         raise ValueError("At least one of `do_train` or `do_eval` must be True.")
     if cfg.gradient_accumulation_steps < 1:
         raise ValueError("Invalid gradient_accumulation_steps parameter: {}, should be >= 1".format(
@@ -129,10 +129,15 @@ def ddp_setup(cfg, ngpus_per_node, gpu, model):
 
     elif cfg.gpu is None:
         # Use DP
-        cfg.multigpu = True
-        model = model.cuda()
-        model = torch.nn.DataParallel(model)
-    
+        try:
+            cfg.multigpu = True
+            model = model.cuda()
+            model = torch.nn.DataParallel(model)
+        except:
+            # current device on local machine 
+            device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+            model.to(device)
+            
     if cfg.gpu is not None:  # If a gpu is set by user: NO PARALLELISM!!
         torch.cuda.set_device(cfg.gpu)
         model = model.cuda(cfg.gpu)

@@ -31,6 +31,7 @@ from src.utilities.utils import AverageMeter
 
 logger = logging.getLogger(__name__)
 from timebudget import timebudget
+from IPython import embed 
 
 ROOT_PATH = '/pfs/work7/workspace/scratch/cc7738-prefeature1/TAG-LP/data'
 
@@ -72,15 +73,15 @@ class InputFeatures(object):
 class DataProcessor(object):
     """Base class for data converters for sequence classification data sets."""
 
-    def get_train_examples(self, dir):
+    def get_train_examples(self):
         """Gets a collection of `InputExample`s for the train set."""
         raise NotImplementedError()
 
-    def get_dev_examples(self, dir):
+    def get_dev_examples(self):
         """Gets a collection of `InputExample`s for the dev set."""
         raise NotImplementedError()
 
-    def get_labels(self, dir):
+    def get_labels(self):
         """Gets the list of labels for this data set."""
         raise NotImplementedError()
 
@@ -102,57 +103,102 @@ class DataProcessor(object):
 
 class KGProcessor(DataProcessor):
     """Processor for knowledge graph data set."""
-    def __init__(self):
+    def __init__(self, dir):
         self.labels = set()
+        self.dir = dir 
+        self.get_rel2text()
+        self.get_ent2text()
+        self.entities = self.get_entities()
+        self.relations = self.get_relations()
+        self.all_triples_str_set, self.test_triples = self.get_all_triples_str_set()
+
     
-    def get_train_examples(self, dir):
+    def get_rel2text(self):
+        self.rel2text = {}
+        with open(os.path.join(ROOT_PATH, f"{self.dir}/relation2text.txt"), 'r') as f:
+            rel_lines = f.readlines()
+            for line in rel_lines:
+                temp = line.strip().split('\t')
+                self.rel2text[temp[0]] = temp[1]      
+    
+    
+    def get_ent2text(self):
+        self.ent2text = {}
+        with open(os.path.join(ROOT_PATH, f"{self.dir}/entity2text.txt"), 'r') as f:
+            ent_lines = f.readlines()
+            for line in ent_lines:
+                temp = line.strip().split('\t')
+                if len(temp) == 2:
+                    end = temp[1]#.find(',')
+                    self.ent2text[temp[0]] = temp[1]#[:end]
+                    
+        if self.dir.find("FB15") != -1:
+            with open(os.path.join(ROOT_PATH, f"{self.dir}/entity2textlong.txt"), 'r') as f:
+                ent_lines = f.readlines()
+                for line in ent_lines:
+                    temp = line.strip().split('\t')
+                    #first_sent_end_position = temp[1].find(".")
+                    self.ent2text[temp[0]] = temp[1]#[:first_sent_end_position + 1]
+
+    
+
+    def get_entities(self):
+        return list(self.ent2text.keys())
+                    
+    # _create_examples(self, lines, set_type):
+    def get_train_examples(self):
         """See base class."""
         return self._create_examples(
-            self.get_train_triples(dir), "train", dir)
+            self.get_train_triples(), "train")
 
-    def get_dev_examples(self, dir):
+
+    def get_dev_examples(self):
         """See base class."""
         return self._create_examples(
-            self.get_dev_triples(dir), "dev", dir)
+            self.get_dev_triples(), "dev")
 
-    def get_test_examples(self, dir):
+
+    def get_test_examples(self):
       """See base class."""
       return self._create_examples(
-          self.get_test_triples(dir), "test", dir)
+          self.get_test_triples(), "test")
 
 
-    def get_train_triples(self, dir):
+    def get_train_triples(self):
         """Gets training triples."""
-        return self._read_tsv(ROOT_PATH + '/'+ dir + '/' + "train.tsv")
+        return self._read_tsv(ROOT_PATH + '/'+ self.dir + '/' + "train.tsv")
 
 
-    def get_dev_triples(self, dir):
+    def get_dev_triples(self):
         """Gets validation triples."""
-        return self._read_tsv(ROOT_PATH + '/'+ dir + '/' + "dev.tsv")
+        return self._read_tsv(ROOT_PATH + '/'+ self.dir + '/' + "dev.tsv")
 
-    def get_test_triples(self, dir):
+
+    def get_test_triples(self):
         """Gets test triples."""
-        return self._read_tsv(ROOT_PATH + '/'+ dir + '/' + "test.tsv")
+        return self._read_tsv(ROOT_PATH + '/'+ self.dir + '/' + "test.tsv")
 
-    def get_relations(self, dir):
+
+    def get_relations(self):
         """Gets all labels (relations) in the knowledge graph."""
         # return list(self.labels)
-        with open(ROOT_PATH+'/'+ dir + '/' + "relations.txt", 'r') as f:
+        with open(ROOT_PATH+'/'+ self.dir + '/' + "relations.txt", 'r') as f:
             lines = f.readlines()
             relations = []
             for line in lines:
                 relations.append(line.strip())
         return relations
 
-    def get_labels(self, dir):
+
+    def get_labels(self):
         """Gets all labels (0, 1) for triples in the knowledge graph."""
         return ["0", "1"]
 
 
-    def get_entities(self, dir):
+    def get_entities(self):
         """Gets all entities in the knowledge graph."""
         # return list(self.labels) 
-        with open(os.path.join(ROOT_PATH, f"{dir}/entities.txt"), 'r') as f:
+        with open(os.path.join(ROOT_PATH, f"{self.dir}/entities.txt"), 'r') as f:
             lines = f.readlines()
             entities = []
             for line in tqdm(lines):
@@ -161,43 +207,18 @@ class KGProcessor(DataProcessor):
         return entities
     
     @timebudget
-    def _create_examples(self, lines, set_type, dir):
+    def _create_examples(self, lines, set_type):
         """Creates examples for the training and dev sets."""
-        # entity to text
-        ent2text = {}
-        with open(os.path.join(ROOT_PATH, f"{dir}/entity2text.txt"), 'r') as f:
-            ent_lines = f.readlines()
-            for line in ent_lines:
-                temp = line.strip().split('\t')
-                if len(temp) == 2:
-                    end = temp[1]#.find(',')
-                    ent2text[temp[0]] = temp[1]#[:end]
-  
-        if dir.find("FB15") != -1:
-            with open(os.path.join(ROOT_PATH, f"{dir}/entity2textlong.txt"), 'r') as f:
-                ent_lines = f.readlines()
-                for line in ent_lines:
-                    temp = line.strip().split('\t')
-                    #first_sent_end_position = temp[1].find(".")
-                    ent2text[temp[0]] = temp[1]#[:first_sent_end_position + 1] 
-
-        entities = list(ent2text.keys())
-
-        rel2text = {}
-        with open(os.path.join(ROOT_PATH, f"{dir}/relation2text.txt"), 'r') as f:
-            rel_lines = f.readlines()
-            for line in rel_lines:
-                temp = line.strip().split('\t')
-                rel2text[temp[0]] = temp[1]      
 
         lines_str_set = set(['\t'.join(line) for line in lines])
+        
         examples = []
         for (i, line) in enumerate(lines):
-            head_ent_text = ent2text[line[0]]
-            tail_ent_text = ent2text[line[2]]
-            relation_text = rel2text[line[1]]
+            head_ent_text = self.ent2text[line[0]]
+            tail_ent_text = self.ent2text[line[2]]
+            relation_text = self.rel2text[line[1]]
             
-            if set_type == "dev" or set_type == "test":
+            if (set_type == "dev" or set_type == "test"):
                 label = "1"
                 guid = "%s-%s" % (set_type, i)
                 # print(guid)
@@ -207,6 +228,7 @@ class KGProcessor(DataProcessor):
                 self.labels.add(label)
                 examples.append(
                     InputExample(guid=guid, text_a=text_a, text_b=text_b, text_c = text_c, label=label))
+            
                 
             elif set_type == "train":
                 guid = "%s-%s" % (set_type, i)
@@ -217,6 +239,7 @@ class KGProcessor(DataProcessor):
                 examples.append(
                     InputExample(guid=guid, text_a=text_a, text_b=text_b, text_c = text_c, label="1"))
 
+
                 rnd = random.random()
                 guid = "%s-%s" % (set_type + "_corrupt", i)
                 if rnd <= 0.5:
@@ -225,14 +248,14 @@ class KGProcessor(DataProcessor):
                     for j in range(5):
                         tmp_head = ''
                         while True:
-                            tmp_ent_list = set(entities)
+                            tmp_ent_list = set(self.entities)
                             tmp_ent_list.remove(line[0])
                             tmp_ent_list = list(tmp_ent_list)
                             tmp_head = random.choice(tmp_ent_list)
                             tmp_triple_str = tmp_head + '\t' + line[1] + '\t' + line[2]
                             if tmp_triple_str not in lines_str_set:
                                 break                    
-                        tmp_head_text = ent2text[tmp_head]
+                        tmp_head_text = self.ent2text[tmp_head]
                         examples.append(
                             InputExample(guid=guid, text_a=tmp_head_text, text_b=text_b, text_c = text_c, label="0"))       
                 else:
@@ -241,18 +264,32 @@ class KGProcessor(DataProcessor):
                     # print(guid)
                     for j in range(5):
                         while True:
-                            tmp_ent_list = set(entities)
+                            tmp_ent_list = set(self.entities)
                             tmp_ent_list.remove(line[2])
                             tmp_ent_list = list(tmp_ent_list)
                             tmp_tail = random.choice(tmp_ent_list)
                             tmp_triple_str = line[0] + '\t' + line[1] + '\t' + tmp_tail
                             if tmp_triple_str not in lines_str_set:
                                 break
-                        tmp_tail_text = ent2text[tmp_tail]
+                        tmp_tail_text = self.ent2text[tmp_tail]
                         examples.append(
                             InputExample(guid=guid, text_a=text_a, text_b=text_b, text_c = tmp_tail_text, label="0"))                                                  
         return examples
 
+    def get_all_triples_str_set(self):
+
+        train_triples = self.get_train_triples()
+        dev_triples = self.get_dev_triples()
+        test_triples = self.get_test_triples()
+        all_triples = train_triples + dev_triples + test_triples
+
+        all_triples_str_set = set()
+        for triple in all_triples:
+            triple_str = '\t'.join(triple)
+            all_triples_str_set.add(triple_str)
+        return all_triples_str_set, test_triples
+    
+    
 @timebudget
 def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer, print_info = True):
     """Loads a data file into a list of `InputBatch`s."""
@@ -349,7 +386,7 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
                               input_mask=input_mask,
                               segment_ids=segment_ids,
                               label_id=label_id))
-    logger.info("avg_len: {}".format(avg_len.avg))
+    # logger.info("avg_len: {}".format(avg_len.avg))
     return features
 
 
