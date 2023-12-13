@@ -20,7 +20,7 @@ from src.utilities.config import cfg, update_cfg
 logger = logging.getLogger(__name__)
 timebudget.set_quiet()  # Don't show measurements as they happen
 timebudget.report_at_exit()  # Generate a report when the program exits
-from pdb import set_trace as pdb
+from pdb import set_trace as stop
 # TODO: Accelerate train
 # TODO: Test on CPU
 
@@ -165,6 +165,8 @@ def test_loop_left(test_dataloader, model, device, ranks, ranks_left, top_ten_hi
         
         with torch.no_grad():
             logits = model(input_ids, segment_ids, input_mask, labels=None)[0]
+        
+        stop()
         if len(preds) == 0:
             preds.append(logits.detach().cpu().numpy())
             labels.append(label_ids.detach().cpu().numpy())
@@ -215,7 +217,6 @@ def test_loop_right(test_dataloader, model, device, ranks, ranks_right, top_ten_
             labels[0] = np.append(
                 labels[0], label_ids.detach().cpu().numpy(), axis=0)
 
-    embed()
     preds = preds[0]
     # get the dimension corresponding to current label 1
     rel_values = preds[:, labels[0]]

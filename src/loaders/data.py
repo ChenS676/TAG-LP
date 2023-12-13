@@ -50,7 +50,9 @@ def create_corrupt_list(test_triple: list,
     head = test_triple[0]
     relation = test_triple[1]
     tail = test_triple[2]
+    labels = []
     head_corrupt_list = [test_triple]
+    labels.append(1)
     
     if mode == 'head':
         for corrupt_ent in entity_list:
@@ -60,7 +62,8 @@ def create_corrupt_list(test_triple: list,
                 if tmp_triple_str not in all_triples_str_set:
                     # may be slow
                     head_corrupt_list.append(tmp_triple)
-        return head_corrupt_list
+                    labels.append(0)
+        return head_corrupt_list, labels
     
     elif mode == 'tail':
         tail_corrupt_list = [test_triple]
@@ -71,7 +74,8 @@ def create_corrupt_list(test_triple: list,
                 if tmp_triple_str not in all_triples_str_set:
                     # may be slow
                     tail_corrupt_list.append(tmp_triple)
-        return tail_corrupt_list 
+                    labels.append(0)
+        return tail_corrupt_list, labels
     
 
 

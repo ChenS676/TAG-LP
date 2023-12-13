@@ -861,6 +861,7 @@ def main():
             hits_left.append([])
             hits_right.append([])
             hits.append([])
+            
         for test_triple in test_triples:
             head = test_triple[0]
             relation = test_triple[1]

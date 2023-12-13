@@ -29,7 +29,6 @@ import torch
 from yacs.config import CfgNode as CN
 
 from timebudget import timebudget
-from IPython import embed
 
 def config_device(cfg: CN, 
                   logger: None, 

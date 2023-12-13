@@ -46,6 +46,8 @@ from src.loaders.data import get_data, create_corrupt_list
 from src.lm_trainer.bert_trainer import train_loop, eval_loop, get_model, test_loop_left, test_loop_right
 from src.loaders.kg_loader import KGProcessor, convert_examples_to_features
 
+# for debug
+from pdb import set_trace as stop
 
                 
 @timebudget
@@ -204,9 +206,9 @@ def main_worker(gpu: int,
             hits.append([])
 
         for test_triple in tqdm(test_triples, desc="Test Triples"):
-
-            # print(test_triple, head, relation, tail)
-            head_corrupt_list = create_corrupt_list(test_triple, entity_list, 'head', all_triples_str_set)
+            logger.info(test_triple)
+            head_corrupt_list, head_label_list = create_corrupt_list(test_triple, entity_list, 'head', all_triples_str_set)
+            logger.info(f"head corrupted list {head_label_list[:10]}")
             logger.info(f"head_corrupt_list: {len(head_corrupt_list)}")
             tmp_examples = processor._create_examples(head_corrupt_list, "test")
             tmp_features = convert_examples_to_features(tmp_examples, label_list, cfg.lm.max_seq_length, tokenizer, print_info = False)
@@ -214,8 +216,8 @@ def main_worker(gpu: int,
             model.eval()
             ranks, ranks_left, rank1, top_ten_hit_count = test_loop_left(test_dataloader, model, device, ranks, ranks_left, top_ten_hit_count)
             
-            embed()
-            tail_corrupt_list = create_corrupt_list(test_triple, entity_list, 'tail', all_triples_str_set)
+            tail_corrupt_list, tail_label_list = create_corrupt_list(test_triple, entity_list, 'tail', all_triples_str_set)
+            logger.info(f"tail corrupted list {tail_label_list[:10]}")
             logger.info(f"tail_corrupt_list: {len(tail_corrupt_list)}")
             tmp_examples = processor._create_examples(tail_corrupt_list, "test")
             #print(len(tmp_examples))
