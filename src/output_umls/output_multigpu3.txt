@@ -1,0 +1,101 @@
+0
+tcp://uc2n561:15015
+Loading BERT tokenizer...
+[10/Dec/2023 19:46:38] INFO - Added key: store_based_barrier_key:1 to store for rank: 1
+Loading BERT tokenizer...
+[10/Dec/2023 19:46:38] INFO - Added key: store_based_barrier_key:1 to store for rank: 0
+[10/Dec/2023 19:46:38] INFO - Rank 0: Completed store-based barrier for key:store_based_barrier_key:1 with 2 nodes.
+[10/Dec/2023 19:46:38] INFO - Rank 1: Completed store-based barrier for key:store_based_barrier_key:1 with 2 nodes.
+0 0 64 6
+[10/Dec/2023 19:46:40] INFO - label_list: ['0', '1']
+['idea_or_concept', 'virus', 'spatial_concept', 'human_caused_phenomenon_or_process', 'human', 'organ_or_tissue_function', 'daily_or_recreational_activity', 'steroid', 'biomedical_or_dental_material', 'vertebrate', 'immunologic_factor', 'inorganic_chemical', 'invertebrate', 'embryonic_structure', 'functional_concept', 'amino_acid_peptide_or_protein', 'fish', 'reptile', 'physical_object', 'disease_or_syndrome', 'biologically_active_substance', 'physiologic_function', 'population_group', 'group', 'body_space_or_junction', 'bird', 'qualitative_concept', 'bacterium', 'cell_function', 'enzyme', 'organophosphorus_compound', 'nucleic_acid_nucleoside_or_nucleotide', 'cell', 'language', 'antibiotic', 'indicator_reagent_or_diagnostic_aid', 'fungus', 'chemical_viewed_functionally', 'rickettsia_or_chlamydia', 'patient_or_disabled_group', 'professional_society', 'health_care_related_organization', 'clinical_attribute', 'biomedical_occupation_or_discipline', 'temporal_concept', 'phenomenon_or_process', 'family_group', 'chemical_viewed_structurally', 'regulation_or_law', 'acquired_abnormality', 'experimental_model_of_disease', 'professional_or_occupational_group', 'injury_or_poisoning', 'receptor', 'drug_delivery_device', 'hazardous_or_poisonous_substance', 'organism', 'neoplastic_process', 'mammal', 'molecular_function', 'lipid', 'group_attribute', 'nucleotide_sequence', 'biologic_function', 'chemical', 'cell_component', 'intellectual_product', 'manufactured_object', 'classification', 'geographic_area', 'vitamin', 'gene_or_genome', 'self_help_or_relief_organization', 'pathologic_function', 'amphibian', 'laboratory_or_test_result', 'organism_attribute', 'cell_or_molecular_dysfunction', 'therapeutic_or_preventive_procedure', 'sign_or_symptom', 'occupational_activity', 'anatomical_abnormality', 'hormone', 'fully_formed_anatomical_structure', 'educational_activity', 'quantitative_concept', 'tissue', 'organism_function', 'social_behavior', 'mental_or_behavioral_dysfunction', 'governmental_or_regulatory_activity', 'molecular_biology_research_technique', 'occupation_or_discipline', 'conceptual_entity', 'body_location_or_region', 'pharmacologic_substance', 'clinical_drug', 'food', 'substance', 'genetic_function', 'congenital_abnormality', 'medical_device', 'carbohydrate', 'health_care_activity', 'eicosanoid', 'element_ion_or_isotope', 'diagnostic_procedure', 'entity', 'event', 'laboratory_procedure', 'environmental_effect_of_humans', 'body_part_organ_or_organ_component', 'molecular_sequence', 'mental_process', 'research_device', 'alga', 'natural_phenomenon_or_process', 'anatomical_structure', 'animal', 'body_system', 'behavior', 'carbohydrate_sequence', 'archaeon', 'research_activity', 'organization', 'individual_behavior', 'organic_chemical', 'finding', 'age_group', 'activity', 'machine_activity', 'plant', 'body_substance', 'amino_acid_sequence', 'neuroreactive_substance_or_biogenic_amine']
+[10/Dec/2023 19:46:40] INFO - load train tsv.
+[10/Dec/2023 19:46:40] INFO - Writing example 0 of 31296
+[10/Dec/2023 19:46:40] INFO - *** Example ***
+[10/Dec/2023 19:46:40] INFO - number of examples: 31296
+[10/Dec/2023 19:46:40] INFO - guid: train-0
+[10/Dec/2023 19:46:40] INFO - tokens: [CLS] acquired abnormal ##ity [SEP] location of [SEP] experimental model of disease [SEP]
+[10/Dec/2023 19:46:40] INFO - input_ids: 101 2888 22832 1785 102 2450 1104 102 6700 2235 1104 3653 102 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+[10/Dec/2023 19:46:40] INFO - input_mask: 1 1 1 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+[10/Dec/2023 19:46:40] INFO - segment_ids: 0 0 0 0 0 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+[10/Dec/2023 19:46:40] INFO - label: 1 (id = 1)
+1 1 64 6
+[10/Dec/2023 19:46:41] INFO - label_list: ['0', '1']
+['idea_or_concept', 'virus', 'spatial_concept', 'human_caused_phenomenon_or_process', 'human', 'organ_or_tissue_function', 'daily_or_recreational_activity', 'steroid', 'biomedical_or_dental_material', 'vertebrate', 'immunologic_factor', 'inorganic_chemical', 'invertebrate', 'embryonic_structure', 'functional_concept', 'amino_acid_peptide_or_protein', 'fish', 'reptile', 'physical_object', 'disease_or_syndrome', 'biologically_active_substance', 'physiologic_function', 'population_group', 'group', 'body_space_or_junction', 'bird', 'qualitative_concept', 'bacterium', 'cell_function', 'enzyme', 'organophosphorus_compound', 'nucleic_acid_nucleoside_or_nucleotide', 'cell', 'language', 'antibiotic', 'indicator_reagent_or_diagnostic_aid', 'fungus', 'chemical_viewed_functionally', 'rickettsia_or_chlamydia', 'patient_or_disabled_group', 'professional_society', 'health_care_related_organization', 'clinical_attribute', 'biomedical_occupation_or_discipline', 'temporal_concept', 'phenomenon_or_process', 'family_group', 'chemical_viewed_structurally', 'regulation_or_law', 'acquired_abnormality', 'experimental_model_of_disease', 'professional_or_occupational_group', 'injury_or_poisoning', 'receptor', 'drug_delivery_device', 'hazardous_or_poisonous_substance', 'organism', 'neoplastic_process', 'mammal', 'molecular_function', 'lipid', 'group_attribute', 'nucleotide_sequence', 'biologic_function', 'chemical', 'cell_component', 'intellectual_product', 'manufactured_object', 'classification', 'geographic_area', 'vitamin', 'gene_or_genome', 'self_help_or_relief_organization', 'pathologic_function', 'amphibian', 'laboratory_or_test_result', 'organism_attribute', 'cell_or_molecular_dysfunction', 'therapeutic_or_preventive_procedure', 'sign_or_symptom', 'occupational_activity', 'anatomical_abnormality', 'hormone', 'fully_formed_anatomical_structure', 'educational_activity', 'quantitative_concept', 'tissue', 'organism_function', 'social_behavior', 'mental_or_behavioral_dysfunction', 'governmental_or_regulatory_activity', 'molecular_biology_research_technique', 'occupation_or_discipline', 'conceptual_entity', 'body_location_or_region', 'pharmacologic_substance', 'clinical_drug', 'food', 'substance', 'genetic_function', 'congenital_abnormality', 'medical_device', 'carbohydrate', 'health_care_activity', 'eicosanoid', 'element_ion_or_isotope', 'diagnostic_procedure', 'entity', 'event', 'laboratory_procedure', 'environmental_effect_of_humans', 'body_part_organ_or_organ_component', 'molecular_sequence', 'mental_process', 'research_device', 'alga', 'natural_phenomenon_or_process', 'anatomical_structure', 'animal', 'body_system', 'behavior', 'carbohydrate_sequence', 'archaeon', 'research_activity', 'organization', 'individual_behavior', 'organic_chemical', 'finding', 'age_group', 'activity', 'machine_activity', 'plant', 'body_substance', 'amino_acid_sequence', 'neuroreactive_substance_or_biogenic_amine']
+[10/Dec/2023 19:46:41] INFO - load train tsv.
+[10/Dec/2023 19:46:41] INFO - Writing example 0 of 31296
+[10/Dec/2023 19:46:41] INFO - *** Example ***
+[10/Dec/2023 19:46:41] INFO - number of examples: 31296
+[10/Dec/2023 19:46:41] INFO - guid: train-0
+[10/Dec/2023 19:46:41] INFO - tokens: [CLS] acquired abnormal ##ity [SEP] location of [SEP] experimental model of disease [SEP]
+[10/Dec/2023 19:46:41] INFO - input_ids: 101 2888 22832 1785 102 2450 1104 102 6700 2235 1104 3653 102 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+[10/Dec/2023 19:46:41] INFO - input_mask: 1 1 1 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+[10/Dec/2023 19:46:41] INFO - segment_ids: 0 0 0 0 0 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+[10/Dec/2023 19:46:41] INFO - label: 1 (id = 1)
+[10/Dec/2023 19:46:42] INFO - Writing example 10000 of 31296
+[10/Dec/2023 19:46:43] INFO - Writing example 10000 of 31296
+[10/Dec/2023 19:46:44] INFO - Writing example 20000 of 31296
+[10/Dec/2023 19:46:44] INFO - Writing example 20000 of 31296
+[10/Dec/2023 19:46:46] INFO - Writing example 30000 of 31296
+[10/Dec/2023 19:46:46] INFO - avg_len: 6.0
+[10/Dec/2023 19:46:46] INFO - ***** Running training *****
+[10/Dec/2023 19:46:46] INFO -   Batch size = 128
+[10/Dec/2023 19:46:46] INFO - Writing example 30000 of 31296
+[10/Dec/2023 19:46:46] INFO - avg_len: 9.0
+[10/Dec/2023 19:46:46] INFO - ***** Running training *****
+[10/Dec/2023 19:46:46] INFO -   Batch size = 128
+Training loss:  195.22675734758377 15648
+timebudget report...
+              main_worker: 85277.77ms for      1 calls
+               train_loop: 72787.44ms for      1 calls
+convert_examples_to_features: 5461.42ms for      1 calls
+                 get_data:  730.00ms for      1 calls
+         _create_examples:  158.45ms for      1 calls
+                _read_tsv:    6.58ms for      1 calls
+timebudget report...
+              main_worker: 85277.77ms for      1 calls
+               train_loop: 72787.44ms for      1 calls
+convert_examples_to_features: 5461.42ms for      1 calls
+                 get_data:  730.00ms for      1 calls
+         _create_examples:  158.45ms for      1 calls
+                _read_tsv:    6.58ms for      1 calls
+Training loss:  174.0019359588623 15648
+[10/Dec/2023 19:48:02] INFO - load train tsv.
+[10/Dec/2023 19:48:02] INFO - Writing example 0 of 652
+[10/Dec/2023 19:48:02] INFO - *** Example ***
+[10/Dec/2023 19:48:02] INFO - number of examples: 652
+[10/Dec/2023 19:48:02] INFO - guid: dev-0
+[10/Dec/2023 19:48:02] INFO - tokens: [CLS] nuclei ##c acid n ##uc ##leo ##side or n ##uc ##leo ##tide [SEP] affects [SEP] mental or behavioral d ##ys ##function [SEP]
+[10/Dec/2023 19:48:02] INFO - input_ids: 101 27349 1665 5190 183 21977 26918 5570 1137 183 21977 26918 23767 102 13974 102 4910 1137 18560 173 6834 26420 102 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+[10/Dec/2023 19:48:02] INFO - input_mask: 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+[10/Dec/2023 19:48:02] INFO - segment_ids: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+[10/Dec/2023 19:48:02] INFO - label: 1 (id = 1)
+[10/Dec/2023 19:48:02] INFO - avg_len: 9.0
+[10/Dec/2023 19:48:03] INFO - ***** Running training *****
+[10/Dec/2023 19:48:03] INFO -   Batch size = 128
+[10/Dec/2023 19:48:03] INFO - *** Example Eval ***
+[10/Dec/2023 19:48:03] INFO - preds: [1 1 1 1 1 1 1 1 1 1]
+[10/Dec/2023 19:48:03] INFO - labels: [1 1 1 1 1 1 1 1 1 1]
+[10/Dec/2023 19:48:03] INFO - ***** Eval results *****
+[10/Dec/2023 19:48:03] INFO -   acc = 1.0
+[10/Dec/2023 19:48:03] INFO -   eval_loss = 0.0004207202873658389
+[10/Dec/2023 19:48:03] INFO -   global_step = 0
+[10/Dec/2023 19:48:03] INFO -   loss = 1.414649885844409
+timebudget report...
+              main_worker: 87706.66ms for      1 calls
+               train_loop: 73460.47ms for      1 calls
+convert_examples_to_features: 2782.59ms for      2 calls
+                 get_data:  371.81ms for      2 calls
+                eval_loop:  654.04ms for      1 calls
+         _create_examples:   79.90ms for      2 calls
+                _read_tsv:    4.16ms for      2 calls
+timebudget report...
+              main_worker: 87706.66ms for      1 calls
+               train_loop: 73460.47ms for      1 calls
+convert_examples_to_features: 2782.59ms for      2 calls
+                 get_data:  371.81ms for      2 calls
+                eval_loop:  654.04ms for      1 calls
+         _create_examples:   79.90ms for      2 calls
+                _read_tsv:    4.16ms for      2 calls
+timebudget report...
+timebudget report...
