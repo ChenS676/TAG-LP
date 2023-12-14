@@ -77,9 +77,6 @@ def main_worker(gpu: int,
     # ------------------------------------------------------------------------ #
     seed_everything(cfg)
     check_cfg(cfg)
-    
-    scheduler, optimizer = create_optimizer(model, cfg)
-    
     train_examples = None
     num_train_optimization_steps = 0
     if cfg.do_train:
@@ -90,7 +87,7 @@ def main_worker(gpu: int,
             cfg.num_train_optimization_steps = num_train_optimization_steps // torch.distributed.get_world_size()
             
     cfg.train_batch_size = cfg.train_batch_size // cfg.gradient_accumulation_steps
-    
+    scheduler, optimizer = create_optimizer(model, cfg)
     result = {}
     
     if cfg.do_train:
@@ -203,15 +200,12 @@ if __name__ == "__main__":
 
     cfg.no_cuda = False
     cfg.bert_model = 'bert-base-uncased'
-    cfg.lm.max_seq_length = 20
+    cfg.lm.max_seq_length = 15
     cfg.server_ip = ''
     cfg.server_port = ''
     cfg.local_rank = -1 # 0 distributed 
     cfg.distributed = False # True distributed
-    
-    cfg.total_steps = 1000  # Adjust the number of training steps
-    cfg.warmup_steps = 100  # Adjust the number of warm-up steps
-    
+        
     cfg.num_labels = 2 
     cfg.gpu = None # None distributed
     
@@ -221,9 +215,10 @@ if __name__ == "__main__":
     cfg.train_batch_size = 32
     cfg.gradient_accumulation_steps = 1
   
-    cfg.eval_batch_size = 512
-    cfg.lm.train.epochs = 3
+    cfg.eval_batch_size = 135
+    cfg.lm.train.epochs = 5
     cfg.lr = 5e-5
+
 
 
     # ------------------------------------------------------------------------ #

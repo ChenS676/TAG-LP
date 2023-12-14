@@ -103,7 +103,7 @@ def save_to_file(cfg: CN,
     if not os.path.exists(cfg.output_dir):
         os.makedirs(cfg.output_dir)
     
-    file_prefix  = str(cfg.train_batch_size) + "_" + str(cfg.lr) + "_" + str(cfg.max_seq_length) + "_" + str(cfg.lm.train.epochs)
+    file_prefix  = str(cfg.train_batch_size) + "_" + str(cfg.lr) + "_" + str(cfg.lm.max_seq_length) + "_" + str(cfg.lm.train.epochs)
     #file_prefix = str(cfg.data.dir[7:])
     f = open(file_prefix + '_ranks.txt','a')
     f.write(str(rank1) + '\t' + str(rank2) + '\n')
