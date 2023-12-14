@@ -22,7 +22,7 @@ def simple_accuracy(preds, labels):
 
 def compute_metrics(preds, labels):
     assert len(preds) == len(labels)
-    return {"acc": simple_accuracy(preds, labels)}
+    return  simple_accuracy(preds, labels)
 
 import logging
 import torch 
@@ -85,13 +85,56 @@ def check_cfg(cfg:CN):
                             cfg.gradient_accumulation_steps))
 
 import os 
-def create_folders(cfg: CN):
+def save_to_file(cfg: CN, 
+                 result, 
+                 logger, 
+                 rank1, 
+                 rank2,
+                 hits,
+                 hits_left,
+                 hits_right,
+                 ranks,
+                 ranks_left,
+                 ranks_right):
     import uuid 
     cfg.output_dir = os.path.join(cfg.output_dir, str(uuid.uuid4()))
     if os.path.exists(cfg.output_dir) and os.listdir(cfg.output_dir) and cfg.do_train:
         raise ValueError("Output directory ({}) already exists and is not empty.".format(cfg.output_dir))
     if not os.path.exists(cfg.output_dir):
         os.makedirs(cfg.output_dir)
+    
+    file_prefix  = str(cfg.train_batch_size) + "_" + str(cfg.lr) + "_" + str(cfg.max_seq_length) + "_" + str(cfg.lm.train.epochs)
+    #file_prefix = str(cfg.data.dir[7:])
+    f = open(file_prefix + '_ranks.txt','a')
+    f.write(str(rank1) + '\t' + str(rank2) + '\n')
+    f.close()
+    # this could be done more elegantly, but here you go
+    for hits_level in range(10):
+        if rank1 <= hits_level:
+            hits[hits_level].append(1.0)
+            hits_left[hits_level].append(1.0)
+        else:
+            hits[hits_level].append(0.0)
+            hits_left[hits_level].append(0.0)
+
+        if rank2 <= hits_level:
+            hits[hits_level].append(1.0)
+            hits_right[hits_level].append(1.0)
+        else:
+            hits[hits_level].append(0.0)
+            hits_right[hits_level].append(0.0)
+            
+    for i in [0,2,9]:
+        logger.info('Hits left @{0}: {1}'.format(i+1, np.mean(hits_left[i])))
+        logger.info('Hits right @{0}: {1}'.format(i+1, np.mean(hits_right[i])))
+        logger.info('Hits @{0}: {1}'.format(i+1, np.mean(hits[i])))
+    logger.info('Mean rank left: {0}'.format(np.mean(ranks_left)))
+    logger.info('Mean rank right: {0}'.format(np.mean(ranks_right)))
+    logger.info('Mean rank: {0}'.format(np.mean(ranks)))
+    logger.info('Mean reciprocal rank left: {0}'.format(np.mean(1./np.array(ranks_left))))
+    logger.info('Mean reciprocal rank right: {0}'.format(np.mean(1./np.array(ranks_right))))
+    logger.info('Mean reciprocal rank: {0}'.format(np.mean(1./np.array(ranks))))   
+            
         
 # adapted from https://github.com/pytorch/examples/blob/main/distributed/ddp-tutorial-series/multigpu.py
 import torch.multiprocessing as mp

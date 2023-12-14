@@ -7,7 +7,7 @@ from torch.utils.data.distributed import DistributedSampler
 from timebudget import timebudget
 
 @timebudget
-def get_data(features, 
+def get_train_data(features, 
              cfg, 
              logger):
     
@@ -29,53 +29,23 @@ def get_data(features,
                             pin_memory=True,
                             shuffle=False
                             )
-    return dataloader
+    return dataloader, all_label_ids
+
+def get_eval_data(eval_features, eval_batch_size):
+
+    all_input_ids = torch.tensor([f.input_ids for f in eval_features], dtype=torch.long)
+    all_input_mask = torch.tensor([f.input_mask for f in eval_features], dtype=torch.long)
+    all_segment_ids = torch.tensor([f.segment_ids for f in eval_features], dtype=torch.long)
+
+    all_label_ids = torch.tensor([f.label_id for f in eval_features], dtype=torch.long)
+
+    eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
+    # Run prediction for full data
+    eval_sampler = SequentialSampler(eval_data)
+    eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=eval_batch_size)
 
 
-def create_corrupt_list(test_triple: list, 
-                        entity_list: list, 
-                        mode: str,
-                        all_triples_str_set: set):
-    """create_corrupt_list through replace head and tail entity
+    return eval_dataloader, all_label_ids
 
-    Args:
-        test_triple (list): _description_
-        entity_list (list): _description_
-        mode (str): choice head or tail 
-        all_triples_str_set (set): _description_
-
-    Returns:
-        _type_: _description_
-    """
-    head = test_triple[0]
-    relation = test_triple[1]
-    tail = test_triple[2]
-    labels = []
-    head_corrupt_list = [test_triple]
-    labels.append(1)
-    
-    if mode == 'head':
-        for corrupt_ent in entity_list:
-            if corrupt_ent != head:
-                tmp_triple = [corrupt_ent, relation, tail]
-                tmp_triple_str = '\t'.join(tmp_triple)
-                if tmp_triple_str not in all_triples_str_set:
-                    # may be slow
-                    head_corrupt_list.append(tmp_triple)
-                    labels.append(0)
-        return head_corrupt_list, labels
-    
-    elif mode == 'tail':
-        tail_corrupt_list = [test_triple]
-        for corrupt_ent in entity_list:
-            if corrupt_ent != tail:
-                tmp_triple = [head, relation, corrupt_ent]
-                tmp_triple_str = '\t'.join(tmp_triple)
-                if tmp_triple_str not in all_triples_str_set:
-                    # may be slow
-                    tail_corrupt_list.append(tmp_triple)
-                    labels.append(0)
-        return tail_corrupt_list, labels
-    
 
 

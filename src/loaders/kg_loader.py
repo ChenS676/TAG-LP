@@ -31,7 +31,7 @@ from src.utilities.utils import AverageMeter
 
 logger = logging.getLogger(__name__)
 from timebudget import timebudget
-from IPython import embed 
+from pdb import set_trace as stop
 
 ROOT_PATH = '/pfs/work7/workspace/scratch/cc7738-prefeature1/TAG-LP/data'
 
@@ -89,7 +89,7 @@ class DataProcessor(object):
     @timebudget 
     def _read_tsv(cls, input_file, quotechar=None):
         """Reads a tab separated value file."""
-        logging.info("load train tsv.")
+        logging.info(f"load {input_file} tsv.")
         with open(input_file, "r", encoding="utf-8") as f:
             reader = csv.reader(f, delimiter="\t", quotechar=quotechar)
             lines = []
@@ -218,8 +218,19 @@ class KGProcessor(DataProcessor):
             tail_ent_text = self.ent2text[line[2]]
             relation_text = self.rel2text[line[1]]
             
-            if (set_type == "dev" or set_type == "test"):
+            if (set_type == "dev" ):
                 label = "1"
+                guid = "%s-%s" % (set_type, i)
+                # print(guid)
+                text_a = head_ent_text
+                text_b = relation_text
+                text_c = tail_ent_text 
+                self.labels.add(label)
+                examples.append(
+                    InputExample(guid=guid, text_a=text_a, text_b=text_b, text_c = text_c, label=label))
+                
+            elif set_type == "test":
+                label = "1" if i == 0 else "0"
                 guid = "%s-%s" % (set_type, i)
                 # print(guid)
                 text_a = head_ent_text
@@ -291,7 +302,7 @@ class KGProcessor(DataProcessor):
     
     
 @timebudget
-def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer, print_info = True):
+def convert_examples_to_features(mode, examples, label_list, max_seq_length, tokenizer, print_info = True):
     """Loads a data file into a list of `InputBatch`s."""
 
     label_map = {label : i for i, label in enumerate(label_list)}
@@ -369,17 +380,17 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
 
         label_id = label_map[example.label]
 
-        if ex_index < 1 and print_info:
-            logger.info("*** Example ***")
-            logger.info("number of examples: %d" % (len(examples)))
-            logger.info("guid: %s" % (example.guid))
-            logger.info("tokens: %s" % " ".join(
-                    [str(x) for x in tokens]))
-            logger.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
-            logger.info("input_mask: %s" % " ".join([str(x) for x in input_mask]))
-            logger.info(
-                    "segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
-            logger.info("label: %s (id = %d)" % (example.label, label_id))
+        # logger.info(f"*** Example {mode}***")
+        # logger.info("number of examples: %d" % (len(examples)))
+        if ex_index < 5 and print_info:
+            logger.info(f"guid: {example.guid}, label: {label_id}")
+            # logger.info("tokens: %s" % " ".join(
+            #        [str(x) for x in tokens]))
+            # logger.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
+            # logger.info("input_mask: %s" % " ".join([str(x) for x in input_mask]))
+            # logger.info(
+            #         "segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
+            logger.info(f"*** *** *** ***")
 
         features.append(
                 InputFeatures(input_ids=input_ids,

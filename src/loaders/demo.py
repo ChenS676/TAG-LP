@@ -41,9 +41,9 @@ from sklearn.metrics import matthews_corrcoef, f1_score
 from sklearn import metrics
 from tqdm import tqdm 
 from src.utilities.utils import compute_metrics, config_device
-from src.utilities.utils import seed_everything, check_cfg, create_folders, ddp_setup
-from src.loaders.data import get_data, create_corrupt_list
-from src.lm_trainer.bert_trainer import train_loop, eval_loop, get_model, test_loop_left, test_loop_right
+from src.utilities.utils import seed_everything, check_cfg, save_to_file, ddp_setup
+from src.loaders.data import get_train_data, get_eval_data
+from src.lm_trainer.bert_trainer import train_loop, eval_loop, get_model, create_optimizer, test_loop
 from src.loaders.kg_loader import KGProcessor, convert_examples_to_features
 
 # for debug
@@ -77,7 +77,8 @@ def main_worker(gpu: int,
     # ------------------------------------------------------------------------ #
     seed_everything(cfg)
     check_cfg(cfg)
-    create_folders(cfg)
+    
+    scheduler, optimizer = create_optimizer(model, cfg)
     
     train_examples = None
     num_train_optimization_steps = 0
@@ -90,51 +91,28 @@ def main_worker(gpu: int,
             
     cfg.train_batch_size = cfg.train_batch_size // cfg.gradient_accumulation_steps
     
-    # Prepare optimizer
-    param_optimizer = list(model.named_parameters())
-    no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
-    optimizer_grouped_parameters = [
-        {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
-        {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
-        ]
-    if cfg.fp16:
-        try:
-            from apex.optimizers import FP16_Optimizer
-            from apex.optimizers import FusedAdam
-        except ImportError:
-            raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use distributed and fp16 training.")
 
-        optimizer = FusedAdam(optimizer_grouped_parameters,
-                              lr=cfg.learning_rate,
-                              bias_correction=False,
-                              max_grad_norm=1.0)
-        if cfg.loss_scale == 0:
-            optimizer = FP16_Optimizer(optimizer, dynamic_loss_scale=True)
-        else:
-            optimizer = FP16_Optimizer(optimizer, static_loss_scale=cfg.loss_scale)
-            
-        scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=cfg.warmup_steps, num_training_steps=cfg.total_steps)
-
-    else:
-        optimizer = AdamW(model.parameters(),
-                  lr = 5e-2, # cfg.learning_rate - default is 5e-5, our notebook had 2e-5
-                  eps = 1e-8 # cfg.adam_epsilon  - default is 1e-8.
-                )
-        scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=cfg.warmup_steps, num_training_steps=cfg.total_steps)
-
-    global_step = 0
-        
+    result = {}
+    
     if cfg.do_train:
         features = convert_examples_to_features(
-            train_examples, label_list, cfg.lm.max_seq_length, tokenizer)
-        dataloader = get_data(features, cfg, logger)
+            'train', train_examples, label_list, cfg.lm.max_seq_length, tokenizer)
+        dataloader, _ = get_train_data(features, cfg, logger)
         # ------------------------------------------------------------------------ #
         # Train
         # ------------------------------------------------------------------------ #
         model.train()
-        #print(model)
-        model, optimizer, scheduler, global_step = train_loop(cfg, dataloader, model, optimizer, scheduler, num_labels, num_train_optimization_steps, global_step, logger, device)
-                
+        model, optimizer, scheduler = train_loop(cfg, 
+                                                 dataloader, 
+                                                 model, 
+                                                 optimizer, 
+                                                 scheduler, 
+                                                 num_labels, 
+                                                 num_train_optimization_steps,
+                                                 logger, 
+                                                 device, 
+                                                 result)
+        
     if cfg.do_train and (cfg.local_rank == -1 or torch.distributed.get_rank() == 0):
         # Save a trained model, configuration and tokenizer
         model_to_save = model.module if hasattr(model, 'module') else model  # Only save the model it-self
@@ -158,7 +136,7 @@ def main_worker(gpu: int,
     # ------------------------------------------------------------------------ #
     if cfg.do_eval and (cfg.local_rank == -1 or torch.distributed.get_rank() == 0):
         eval_examples = processor.get_dev_examples()
-        eval_features = convert_examples_to_features(
+        eval_features = convert_examples_to_features('eval', 
             eval_examples, label_list, cfg.lm.max_seq_length, tokenizer)
        
         # Load a trained model and vocabulary that you have fine-tuned
@@ -167,8 +145,8 @@ def main_worker(gpu: int,
 
         model.eval()
 
-        eval_dataloader = get_data(eval_features, cfg, logger)
-        eval_loop(eval_dataloader, model, num_labels, global_step, cfg, compute_metrics, device)
+        eval_dataloader, _ = get_eval_data(eval_features, cfg.eval_batch_size)
+        result = eval_loop('eval', eval_dataloader, model, num_labels, device, result)
     
     if cfg.do_predict and (cfg.local_rank == -1 or torch.distributed.get_rank() == 0):
         
@@ -179,86 +157,40 @@ def main_worker(gpu: int,
         model.to(device)
         model.eval()
 
-        all_triples_str_set, test_triples = processor.get_all_triples_str_set()
-        
-        pred_examples = processor.get_test_examples()
-        pred_features = convert_examples_to_features(
-            pred_examples, label_list, cfg.lm.max_seq_length, tokenizer)
-        pred_dataloader = get_data(pred_features, cfg, logger)
-
-        eval_loop(pred_dataloader, model, num_labels, global_step, cfg, compute_metrics, device)
-
-        # run link prediction
-        ranks = []
-        ranks_left = []
-        ranks_right = []
-
-        hits_left = []
-        hits_right = []
-        hits = []
-
-        top_ten_hit_count = 0
-
-        # wtf
-        for i in range(10):
-            hits_left.append([])
-            hits_right.append([])
-            hits.append([])
-
-        for test_triple in tqdm(test_triples, desc="Test Triples"):
-            logger.info(test_triple)
-            head_corrupt_list, head_label_list = create_corrupt_list(test_triple, entity_list, 'head', all_triples_str_set)
-            logger.info(f"head corrupted list {head_label_list[:10]}")
-            logger.info(f"head_corrupt_list: {len(head_corrupt_list)}")
-            tmp_examples = processor._create_examples(head_corrupt_list, "test")
-            tmp_features = convert_examples_to_features(tmp_examples, label_list, cfg.lm.max_seq_length, tokenizer, print_info = False)
-            test_dataloader = get_data(tmp_features, cfg, logger)
-            model.eval()
-            ranks, ranks_left, rank1, top_ten_hit_count = test_loop_left(test_dataloader, model, device, ranks, ranks_left, top_ten_hit_count)
-            
-            tail_corrupt_list, tail_label_list = create_corrupt_list(test_triple, entity_list, 'tail', all_triples_str_set)
-            logger.info(f"tail corrupted list {tail_label_list[:10]}")
-            logger.info(f"tail_corrupt_list: {len(tail_corrupt_list)}")
-            tmp_examples = processor._create_examples(tail_corrupt_list, "test")
-            #print(len(tmp_examples))
-            tmp_features = convert_examples_to_features(tmp_examples, label_list, cfg.lm.max_seq_length, tokenizer, print_info = False)
-            test_dataloader = get_data(tmp_features, cfg, logger)
-            model.eval()
-            ranks, ranks_right, rank2, top_ten_hit_count = test_loop_right(test_dataloader, model, device, ranks, ranks_right, top_ten_hit_count)
-
-
-            file_prefix = str(cfg.data.dir[7:]) + "_" + str(cfg.train_batch_size) + "_" + str(cfg.lm.learning_rate) + "_" + str(cfg.lm.max_seq_length) + "_" + str(cfg.lm.train.epochs)
-            f = open(file_prefix + '_ranks.txt','a')
-            f.write(str(rank1) + '\t' + str(rank2) + '\n')
-            f.close()
-            # this could be done more elegantly, but here you go
-            for hits_level in range(10):
-                if rank1 <= hits_level:
-                    hits[hits_level].append(1.0)
-                    hits_left[hits_level].append(1.0)
-                else:
-                    hits[hits_level].append(0.0)
-                    hits_left[hits_level].append(0.0)
-
-                if rank2 <= hits_level:
-                    hits[hits_level].append(1.0)
-                    hits_right[hits_level].append(1.0)
-                else:
-                    hits[hits_level].append(0.0)
-                    hits_right[hits_level].append(0.0)
     
+        pred_examples = processor.get_test_examples()
+        pred_features = convert_examples_to_features('eval', 
+            pred_examples, label_list, cfg.lm.max_seq_length, tokenizer)
+        pred_dataloader, _ = get_eval_data(pred_features, cfg.eval_batch_size)
 
-        for i in [0,2,9]:
-            logger.info('Hits left @{0}: {1}'.format(i+1, np.mean(hits_left[i])))
-            logger.info('Hits right @{0}: {1}'.format(i+1, np.mean(hits_right[i])))
-            logger.info('Hits @{0}: {1}'.format(i+1, np.mean(hits[i])))
-        logger.info('Mean rank left: {0}'.format(np.mean(ranks_left)))
-        logger.info('Mean rank right: {0}'.format(np.mean(ranks_right)))
-        logger.info('Mean rank: {0}'.format(np.mean(ranks)))
-        logger.info('Mean reciprocal rank left: {0}'.format(np.mean(1./np.array(ranks_left))))
-        logger.info('Mean reciprocal rank right: {0}'.format(np.mean(1./np.array(ranks_right))))
-        logger.info('Mean reciprocal rank: {0}'.format(np.mean(1./np.array(ranks))))            
+        result = eval_loop('test', pred_dataloader, model, num_labels, device, result)
+        print(result)
+        
+        rank1, rank2, hits, hits_left, hits_right, ranks, ranks_left, ranks_right = test_loop(
+                                                                                            processor, 
+                                                                                            model,
+                                                                                            tokenizer, 
+                                                                                            device)
 
+    save_to_file(cfg, 
+                 result, 
+                 logger, 
+                 rank1, 
+                 rank2, 
+                 hits, 
+                 hits_left, 
+                 hits_right, 
+                 ranks, 
+                 ranks_left, 
+                 ranks_right)
+    output_eval_file = os.path.join(cfg.output_dir, "eval_results.txt")
+
+    with open(output_eval_file, "w") as writer:
+        logger.info("***** Eval results *****")
+        for key in sorted(result.keys()):
+            logger.info("  %s = %s", key, str(result[key]))
+            writer.write("%s = %s\n" % (key, str(result[key])))
+    
     if torch.distributed.is_initialized():
         destroy_process_group()
 
@@ -291,10 +223,13 @@ if __name__ == "__main__":
     # cfg.num_train_epochs = 3.0    
     cfg.eval_batch_size = 8 
     cfg.lm.train.epochs = 1
+    cfg.lr = cfg.lm.train.lr 
     # ------------------------------------------------------------------------ #
     # data params for config
     # ------------------------------------------------------------------------ #
 
+    
+ 
     try:
         node_str = os.environ['SLURM_JOB_NODELIST'].replace('[', '').replace(']', '')
         nodes = node_str.split(',')
