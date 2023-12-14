@@ -76,12 +76,12 @@ def set_cfg(cfg):
     cfg.lm = CN()
     cfg.lm.model = CN()
     # LM model name
-    cfg.lm.model.name = 'bert-base-cased'
+    cfg.lm.model.name = 'bert-base-uncased'
 
     # Set this flag if you are using an uncased model.
     cfg.lm.do_lower_case = False 
     cfg.lm.model.feat_shrink = ""
-    cfg.lm.max_seq_length = 256
+
     cfg.lm.learning_rate = 5e-5
     cfg.lm.warmup_proportion = 0.1
     
@@ -90,11 +90,10 @@ def set_cfg(cfg):
     # ------------------------------------------------------------------------ #
     cfg.lm.train = CN()
     #  Number of samples computed once per batch per device
-    cfg.lm.train.batch_size = 128
     # Number of training steps for which the gradients should be accumulated
     cfg.lm.train.grad_acc_steps = 1
     # Base learning rate
-    cfg.lm.train.lr = 2e-5
+    
     # Maximal number of epochs
     cfg.lm.train.epochs = 2
     # The number of warmup steps

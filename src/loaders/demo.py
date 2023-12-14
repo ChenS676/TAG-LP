@@ -84,14 +84,13 @@ def main_worker(gpu: int,
     num_train_optimization_steps = 0
     if cfg.do_train:
         train_examples = processor.get_train_examples()
-        num_train_optimization_steps = int(
+        cfg.num_train_optimization_steps = int(
             len(train_examples) / cfg.train_batch_size / cfg.gradient_accumulation_steps) * cfg.lm.train.epochs
         if cfg.local_rank != -1:
-            num_train_optimization_steps = num_train_optimization_steps // torch.distributed.get_world_size()
+            cfg.num_train_optimization_steps = num_train_optimization_steps // torch.distributed.get_world_size()
             
     cfg.train_batch_size = cfg.train_batch_size // cfg.gradient_accumulation_steps
     
-
     result = {}
     
     if cfg.do_train:
@@ -157,7 +156,6 @@ def main_worker(gpu: int,
         model.to(device)
         model.eval()
 
-    
         pred_examples = processor.get_test_examples()
         pred_features = convert_examples_to_features('eval', 
             pred_examples, label_list, cfg.lm.max_seq_length, tokenizer)
@@ -204,32 +202,33 @@ if __name__ == "__main__":
     # temporary solution for passing arguments
 
     cfg.no_cuda = False
-    cfg.bert_model = cfg.lm.model.name 
+    cfg.bert_model = 'bert-base-uncased'
+    cfg.lm.max_seq_length = 20
     cfg.server_ip = ''
     cfg.server_port = ''
     cfg.local_rank = -1 # 0 distributed 
     cfg.distributed = False # True distributed
+    
     cfg.total_steps = 1000  # Adjust the number of training steps
     cfg.warmup_steps = 100  # Adjust the number of warm-up steps
+    
     cfg.num_labels = 2 
-    cfg.batch_size = cfg.lm.train.batch_size # cause confusion
     cfg.gpu = None # None distributed
     
     cfg.do_train = True
     cfg.do_eval = True
     cfg.do_predict = True
-    cfg.train_batch_size = 128
+    cfg.train_batch_size = 32
     cfg.gradient_accumulation_steps = 1
-    # cfg.num_train_epochs = 3.0    
-    cfg.eval_batch_size = 8 
-    cfg.lm.train.epochs = 1
-    cfg.lr = cfg.lm.train.lr 
+  
+    cfg.eval_batch_size = 512
+    cfg.lm.train.epochs = 3
+    cfg.lr = 5e-5
+
+
     # ------------------------------------------------------------------------ #
     # data params for config
     # ------------------------------------------------------------------------ #
-
-    
- 
     try:
         node_str = os.environ['SLURM_JOB_NODELIST'].replace('[', '').replace(']', '')
         nodes = node_str.split(',')

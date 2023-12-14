@@ -136,7 +136,6 @@ def eval_loop(
     logger.info(f"preds: {preds[:10]}")
     logger.info(f"labels: {labels[0][:10]}")
     result[f'{mode}_loss'] = eval_loss
-    stop()
     result[f'{mode}_acc2'] = metrics.accuracy_score(labels[0], preds)
     return result
 
@@ -145,7 +144,9 @@ def get_model(cfg: CN):
 
     print('Loading BERT tokenizer...')
     tokenizer = BertTokenizer.from_pretrained(cfg.lm.model.name, do_lower_case=cfg.lm.do_lower_case)
-    cache_dir = cfg.cache_dir if cfg.cache_dir else os.path.join(str(PYTORCH_PRETRAINED_BERT_CACHE), 'distributed_{}'.format(cfg.local_rank))
+    
+    #cache_dir = cfg.cache_dir if cfg.cache_dir else os.path.join(str(PYTORCH_PRETRAINED_BERT_CACHE), 'distributed_{}'.format(cfg.local_rank))
+    cache_dir = cfg.cache_dir if cfg.cache_dir else os.path.join('.', 'distributed_{}'.format(cfg.local_rank))
     model = BertForSequenceClassification.from_pretrained(cfg.bert_model,
               cache_dir=cache_dir,
               num_labels=cfg.num_labels)
@@ -319,6 +320,7 @@ def create_optimizer(model,
                   lr = cfg.lr, # cfg.learning_rate - default is 5e-5, our notebook had 2e-5
                   eps = 1e-8 # cfg.adam_epsilon  - default is 1e-8.
                 )
-        scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=cfg.warmup_steps, num_training_steps=cfg.total_steps)
+        scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=int(0.1*cfg.num_train_optimization_steps), num_training_steps=cfg.num_train_optimization_steps)
+
 
     return scheduler, optimizer

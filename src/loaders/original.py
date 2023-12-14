@@ -42,7 +42,7 @@ from pytorch_pretrained_bert.tokenization import BertTokenizer
 from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
 
 os.environ['CUDA_VISIBLE_DEVICES']= '1'
-torch.backends.cudnn.deterministic = True
+#torch.backends.cudnn.deterministic = True
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ class InputExample(object):
     def __init__(self, guid, text_a, text_b=None, text_c=None, label=None):
         """Constructs a InputExample.
 
-        cfg:
+        Args:
             guid: Unique id for the example.
             text_a: string. The untokenized text of the first sequence. For single
             sequence tasks, only this sequence must be specified.
@@ -388,6 +388,15 @@ def _truncate_seq_triple(tokens_a, tokens_b, tokens_c, max_length):
         else:
             tokens_c.pop()
 
+def simple_accuracy(preds, labels):
+    return (preds == labels).mean()
+
+def compute_metrics(task_name, preds, labels):
+    assert len(preds) == len(labels)
+    if task_name == "kg":
+        return {"acc": simple_accuracy(preds, labels)}
+    else:
+        raise KeyError(task_name)
 
 
 def main():
@@ -483,92 +492,90 @@ def main():
                              "Positive power of 2: static loss scaling value.\n")
     parser.add_argument('--server_ip', type=str, default='', help="Can be used for distant debugging.")
     parser.add_argument('--server_port', type=str, default='', help="Can be used for distant debugging.")
-    cfg = parser.parse_cfg()
+    args = parser.parse_args()
 
-    if cfg.server_ip and cfg.server_port:
+    if args.server_ip and args.server_port:
         # Distant debugging - see https://code.visualstudio.com/docs/python/debugging#_attach-to-a-local-script
         import ptvsd
         print("Waiting for debugger attach")
-        ptvsd.enable_attach(address=(cfg.server_ip, cfg.server_port), redirect_output=True)
+        ptvsd.enable_attach(address=(args.server_ip, args.server_port), redirect_output=True)
         ptvsd.wait_for_attach()
 
     processors = {
         "kg": KGProcessor,
     }
 
-    if cfg.local_rank == -1 or cfg.no_cuda:
-        device = torch.device("cuda" if torch.cuda.is_available() and not cfg.no_cuda else "cpu")
+    if args.local_rank == -1 or args.no_cuda:
+        device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
         n_gpu = torch.cuda.device_count()
     else:
-        torch.cuda.set_device(cfg.local_rank)
-        device = torch.device("cuda", cfg.local_rank)
+        torch.cuda.set_device(args.local_rank)
+        device = torch.device("cuda", args.local_rank)
         n_gpu = 1
         # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
         torch.distributed.init_process_group(backend='nccl')
 
     logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
                         datefmt = '%m/%d/%Y %H:%M:%S',
-                        level = logging.INFO if cfg.local_rank in [-1, 0] else logging.WARN)
+                        level = logging.INFO if args.local_rank in [-1, 0] else logging.WARN)
 
     logger.info("device: {} n_gpu: {}, distributed training: {}, 16-bits training: {}".format(
-        device, n_gpu, bool(cfg.local_rank != -1), cfg.fp16))
+        device, n_gpu, bool(args.local_rank != -1), args.fp16))
 
-    if cfg.gradient_accumulation_steps < 1:
+    if args.gradient_accumulation_steps < 1:
         raise ValueError("Invalid gradient_accumulation_steps parameter: {}, should be >= 1".format(
-                            cfg.gradient_accumulation_steps))
+                            args.gradient_accumulation_steps))
 
-    cfg.train_batch_size = cfg.train_batch_size // cfg.gradient_accumulation_steps
-    cfg.seed = random.randint(1, 200)
-    random.seed(cfg.seed)
-    np.random.seed(cfg.seed)
-    torch.manual_seed(cfg.seed)
+    args.train_batch_size = args.train_batch_size // args.gradient_accumulation_steps
+    args.seed = random.randint(1, 200)
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
 
     if n_gpu > 0:
-        torch.cuda.manual_seed_all(cfg.seed)
+        torch.cuda.manual_seed_all(args.seed)
 
-    if not cfg.do_train and not cfg.do_eval:
+    if not args.do_train and not args.do_eval:
         raise ValueError("At least one of `do_train` or `do_eval` must be True.")
 
-    if os.path.exists(cfg.output_dir) and os.listdir(cfg.output_dir) and cfg.do_train:
-        raise ValueError("Output directory ({}) already exists and is not empty.".format(cfg.output_dir))
-    if not os.path.exists(cfg.output_dir):
-        os.makedirs(cfg.output_dir)
+    if os.path.exists(args.output_dir) and os.listdir(args.output_dir) and args.do_train:
+        raise ValueError("Output directory ({}) already exists and is not empty.".format(args.output_dir))
+    if not os.path.exists(args.output_dir):
+        os.makedirs(args.output_dir)
 
-    task_name = cfg.task_name.lower()
+    task_name = args.task_name.lower()
 
     if task_name not in processors:
         raise ValueError("Task not found: %s" % (task_name))
 
     processor = processors[task_name]()
 
-    label_list = processor.get_labels(cfg.data_dir)
+    label_list = processor.get_labels(args.data_dir)
     num_labels = len(label_list)
 
-    entity_list = processor.get_entities(cfg.data_dir)
+    entity_list = processor.get_entities(args.data_dir)
     #print(entity_list)
 
-    tokenizer = BertTokenizer.from_pretrained(cfg.bert_model, do_lower_case=cfg.do_lower_case)
+    tokenizer = BertTokenizer.from_pretrained(args.bert_model, do_lower_case=args.do_lower_case)
 
     train_examples = None
     num_train_optimization_steps = 0
-    if cfg.do_train:
-        train_examples = processor.get_train_examples(cfg.data_dir)
+    if args.do_train:
+        train_examples = processor.get_train_examples(args.data_dir)
         num_train_optimization_steps = int(
-            len(train_examples) / cfg.train_batch_size / cfg.gradient_accumulation_steps) * cfg.num_train_epochs
-        if cfg.local_rank != -1:
+            len(train_examples) / args.train_batch_size / args.gradient_accumulation_steps) * args.num_train_epochs
+        if args.local_rank != -1:
             num_train_optimization_steps = num_train_optimization_steps // torch.distributed.get_world_size()
 
     # Prepare model
-    cache_dir = cfg.cache_dir if cfg.cache_dir else os.path.join(str(PYTORCH_PRETRAINED_BERT_CACHE), 'distributed_{}'.format(cfg.local_rank))
-    model = BertForSequenceClassification.from_pretrained(cfg.bert_model,
+    cache_dir = args.cache_dir if args.cache_dir else os.path.join(str(PYTORCH_PRETRAINED_BERT_CACHE), 'distributed_{}'.format(args.local_rank))
+    model = BertForSequenceClassification.from_pretrained(args.bert_model,
               cache_dir=cache_dir,
               num_labels=num_labels)
-    
-    if cfg.fp16:
+    if args.fp16:
         model.half()
     model.to(device)
-    
-    if cfg.local_rank != -1:
+    if args.local_rank != -1:
         try:
             from apex.parallel import DistributedDataParallel as DDP
         except ImportError:
@@ -585,7 +592,7 @@ def main():
         {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
         {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
         ]
-    if cfg.fp16:
+    if args.fp16:
         try:
             from apex.optimizers import FP16_Optimizer
             from apex.optimizers import FusedAdam
@@ -593,53 +600,52 @@ def main():
             raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use distributed and fp16 training.")
 
         optimizer = FusedAdam(optimizer_grouped_parameters,
-                              lr=cfg.learning_rate,
+                              lr=args.learning_rate,
                               bias_correction=False,
                               max_grad_norm=1.0)
-        if cfg.loss_scale == 0:
+        if args.loss_scale == 0:
             optimizer = FP16_Optimizer(optimizer, dynamic_loss_scale=True)
         else:
-            optimizer = FP16_Optimizer(optimizer, static_loss_scale=cfg.loss_scale)
-        warmup_linear = WarmupLinearSchedule(warmup=cfg.warmup_proportion,
+            optimizer = FP16_Optimizer(optimizer, static_loss_scale=args.loss_scale)
+        warmup_linear = WarmupLinearSchedule(warmup=args.warmup_proportion,
                                              t_total=num_train_optimization_steps)        
 
     else:
-        # BertAdam - Bert version of Adam algorithm with weight decay fix, warmup and linear decay of the learning rate.
         optimizer = BertAdam(optimizer_grouped_parameters,
-                             lr=cfg.learning_rate,
-                             warmup=cfg.warmup_proportion,
+                             lr=args.learning_rate,
+                             warmup=args.warmup_proportion,
                              t_total=num_train_optimization_steps)
 
     global_step = 0
     nb_tr_steps = 0
     tr_loss = 0
-    if cfg.do_train:
+    if args.do_train:
 
-        features = convert_examples_to_features(
-            train_examples, label_list, cfg.max_seq_length, tokenizer)
+        train_features = convert_examples_to_features(
+            train_examples, label_list, args.max_seq_length, tokenizer)
         logger.info("***** Running training *****")
         logger.info("  Num examples = %d", len(train_examples))
-        logger.info("  Batch size = %d", cfg.train_batch_size)
+        logger.info("  Batch size = %d", args.train_batch_size)
         logger.info("  Num steps = %d", num_train_optimization_steps)
-        all_input_ids = torch.tensor([f.input_ids for f in features], dtype=torch.long)
-        all_input_mask = torch.tensor([f.input_mask for f in features], dtype=torch.long)
-        all_segment_ids = torch.tensor([f.segment_ids for f in features], dtype=torch.long)
+        all_input_ids = torch.tensor([f.input_ids for f in train_features], dtype=torch.long)
+        all_input_mask = torch.tensor([f.input_mask for f in train_features], dtype=torch.long)
+        all_segment_ids = torch.tensor([f.segment_ids for f in train_features], dtype=torch.long)
 
-        all_label_ids = torch.tensor([f.label_id for f in features], dtype=torch.long)
+        all_label_ids = torch.tensor([f.label_id for f in train_features], dtype=torch.long)
 
         train_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
-        if cfg.local_rank == -1:
+        if args.local_rank == -1:
             train_sampler = RandomSampler(train_data)
         else:
             train_sampler = DistributedSampler(train_data)
-        dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=cfg.train_batch_size)
+        train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=args.train_batch_size)
 
         model.train()
         #print(model)
-        for _ in trange(int(cfg.num_train_epochs), desc="Epoch"):
+        for _ in trange(int(args.num_train_epochs), desc="Epoch"):
             tr_loss = 0
             nb_tr_examples, nb_tr_steps = 0, 0
-            for step, batch in enumerate(tqdm(dataloader, desc="Iteration")):
+            for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration")):
                 batch = tuple(t.to(device) for t in batch)
                 input_ids, input_mask, segment_ids, label_ids = batch
 
@@ -652,10 +658,10 @@ def main():
 
                 if n_gpu > 1:
                     loss = loss.mean() # mean() to average on multi-gpu.
-                if cfg.gradient_accumulation_steps > 1:
-                    loss = loss / cfg.gradient_accumulation_steps
+                if args.gradient_accumulation_steps > 1:
+                    loss = loss / args.gradient_accumulation_steps
 
-                if cfg.fp16:
+                if args.fp16:
                     optimizer.backward(loss)
                 else:
                     loss.backward()
@@ -663,12 +669,12 @@ def main():
                 tr_loss += loss.item()
                 nb_tr_examples += input_ids.size(0)
                 nb_tr_steps += 1
-                if (step + 1) % cfg.gradient_accumulation_steps == 0:
-                    if cfg.fp16:
+                if (step + 1) % args.gradient_accumulation_steps == 0:
+                    if args.fp16:
                         # modify learning rate with special warm up BERT uses
-                        # if cfg.fp16 is False, BertAdam is used that handles this automatically
-                        lr_this_step = cfg.learning_rate * warmup_linear.get_lr(global_step/num_train_optimization_steps,
-                                                                                 cfg.warmup_proportion)
+                        # if args.fp16 is False, BertAdam is used that handles this automatically
+                        lr_this_step = args.learning_rate * warmup_linear.get_lr(global_step/num_train_optimization_steps,
+                                                                                 args.warmup_proportion)
                         for param_group in optimizer.param_groups:
                             param_group['lr'] = lr_this_step
                     optimizer.step()
@@ -676,33 +682,33 @@ def main():
                     global_step += 1
             print("Training loss: ", tr_loss, nb_tr_examples)
 
-    if cfg.do_train and (cfg.local_rank == -1 or torch.distributed.get_rank() == 0):
+    if args.do_train and (args.local_rank == -1 or torch.distributed.get_rank() == 0):
         # Save a trained model, configuration and tokenizer
         model_to_save = model.module if hasattr(model, 'module') else model  # Only save the model it-self
 
         # If we save using the predefined names, we can load using `from_pretrained`
-        output_model_file = os.path.join(cfg.output_dir, WEIGHTS_NAME)
-        output_config_file = os.path.join(cfg.output_dir, CONFIG_NAME)
+        output_model_file = os.path.join(args.output_dir, WEIGHTS_NAME)
+        output_config_file = os.path.join(args.output_dir, CONFIG_NAME)
 
         torch.save(model_to_save.state_dict(), output_model_file)
         model_to_save.config.to_json_file(output_config_file)
-        tokenizer.save_vocabulary(cfg.output_dir)
+        tokenizer.save_vocabulary(args.output_dir)
 
         # Load a trained model and vocabulary that you have fine-tuned
-        model = BertForSequenceClassification.from_pretrained(cfg.output_dir, num_labels=num_labels)
-        tokenizer = BertTokenizer.from_pretrained(cfg.output_dir, do_lower_case=cfg.do_lower_case)
+        model = BertForSequenceClassification.from_pretrained(args.output_dir, num_labels=num_labels)
+        tokenizer = BertTokenizer.from_pretrained(args.output_dir, do_lower_case=args.do_lower_case)
     else:
-        model = BertForSequenceClassification.from_pretrained(cfg.bert_model, num_labels=num_labels)
+        model = BertForSequenceClassification.from_pretrained(args.bert_model, num_labels=num_labels)
     model.to(device)
 
-    if cfg.do_eval and (cfg.local_rank == -1 or torch.distributed.get_rank() == 0):
+    if args.do_eval and (args.local_rank == -1 or torch.distributed.get_rank() == 0):
         
-        eval_examples = processor.get_dev_examples(cfg.data_dir)
+        eval_examples = processor.get_dev_examples(args.data_dir)
         eval_features = convert_examples_to_features(
-            eval_examples, label_list, cfg.max_seq_length, tokenizer)
+            eval_examples, label_list, args.max_seq_length, tokenizer)
         logger.info("***** Running evaluation *****")
         logger.info("  Num examples = %d", len(eval_examples))
-        logger.info("  Batch size = %d", cfg.eval_batch_size)
+        logger.info("  Batch size = %d", args.eval_batch_size)
         all_input_ids = torch.tensor([f.input_ids for f in eval_features], dtype=torch.long)
         all_input_mask = torch.tensor([f.input_mask for f in eval_features], dtype=torch.long)
         all_segment_ids = torch.tensor([f.segment_ids for f in eval_features], dtype=torch.long)
@@ -712,11 +718,11 @@ def main():
         eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
         # Run prediction for full data
         eval_sampler = SequentialSampler(eval_data)
-        eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=cfg.eval_batch_size)
+        eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size)
         
         # Load a trained model and vocabulary that you have fine-tuned
-        model = BertForSequenceClassification.from_pretrained(cfg.output_dir, num_labels=num_labels)
-        tokenizer = BertTokenizer.from_pretrained(cfg.output_dir, do_lower_case=cfg.do_lower_case)
+        model = BertForSequenceClassification.from_pretrained(args.output_dir, num_labels=num_labels)
+        tokenizer = BertTokenizer.from_pretrained(args.output_dir, do_lower_case=args.do_lower_case)
         model.to(device)
 
         model.eval()
@@ -751,24 +757,24 @@ def main():
 
         preds = np.argmax(preds, axis=1)
         result = compute_metrics(task_name, preds, all_label_ids.numpy())
-        loss = tr_loss/nb_tr_steps if cfg.do_train else None
+        loss = tr_loss/nb_tr_steps if args.do_train else None
 
         result['eval_loss'] = eval_loss
         result['global_step'] = global_step
         result['loss'] = loss
 
-        output_eval_file = os.path.join(cfg.output_dir, "eval_results.txt")
+        output_eval_file = os.path.join(args.output_dir, "eval_results.txt")
         with open(output_eval_file, "w") as writer:
             logger.info("***** Eval results *****")
             for key in sorted(result.keys()):
                 logger.info("  %s = %s", key, str(result[key]))
                 writer.write("%s = %s\n" % (key, str(result[key])))
 
-    if cfg.do_predict and (cfg.local_rank == -1 or torch.distributed.get_rank() == 0):
+    if args.do_predict and (args.local_rank == -1 or torch.distributed.get_rank() == 0):
 
-        train_triples = processor.get_train_triples(cfg.data_dir)
-        dev_triples = processor.get_dev_triples(cfg.data_dir)
-        test_triples = processor.get_test_triples(cfg.data_dir)
+        train_triples = processor.get_train_triples(args.data_dir)
+        dev_triples = processor.get_dev_triples(args.data_dir)
+        test_triples = processor.get_test_triples(args.data_dir)
         all_triples = train_triples + dev_triples + test_triples
 
         all_triples_str_set = set()
@@ -776,12 +782,12 @@ def main():
             triple_str = '\t'.join(triple)
             all_triples_str_set.add(triple_str)
 
-        eval_examples = processor.get_test_examples(cfg.data_dir)
+        eval_examples = processor.get_test_examples(args.data_dir)
         eval_features = convert_examples_to_features(
-            eval_examples, label_list, cfg.max_seq_length, tokenizer)
+            eval_examples, label_list, args.max_seq_length, tokenizer)
         logger.info("***** Running Prediction *****")
         logger.info("  Num examples = %d", len(eval_examples))
-        logger.info("  Batch size = %d", cfg.eval_batch_size)
+        logger.info("  Batch size = %d", args.eval_batch_size)
         all_input_ids = torch.tensor([f.input_ids for f in eval_features], dtype=torch.long)
         all_input_mask = torch.tensor([f.input_mask for f in eval_features], dtype=torch.long)
         all_segment_ids = torch.tensor([f.segment_ids for f in eval_features], dtype=torch.long)
@@ -791,11 +797,10 @@ def main():
         eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
         # Run prediction for full data
         eval_sampler = SequentialSampler(eval_data)
-        eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=cfg.eval_batch_size)
-
+        eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size)
         # Load a trained model and vocabulary that you have fine-tuned
-        model = BertForSequenceClassification.from_pretrained(cfg.output_dir, num_labels=num_labels)
-        tokenizer = BertTokenizer.from_pretrained(cfg.output_dir, do_lower_case=cfg.do_lower_case)
+        model = BertForSequenceClassification.from_pretrained(args.output_dir, num_labels=num_labels)
+        tokenizer = BertTokenizer.from_pretrained(args.output_dir, do_lower_case=args.do_lower_case)
         model.to(device)
         model.eval()
         eval_loss = 0
@@ -831,13 +836,13 @@ def main():
         preds = np.argmax(preds, axis=1)
 
         result = compute_metrics(task_name, preds, all_label_ids)
-        loss = tr_loss/nb_tr_steps if cfg.do_train else None
+        loss = tr_loss/nb_tr_steps if args.do_train else None
 
         result['eval_loss'] = eval_loss
         result['global_step'] = global_step
         result['loss'] = loss
 
-        output_eval_file = os.path.join(cfg.output_dir, "test_results.txt")
+        output_eval_file = os.path.join(args.output_dir, "test_results.txt")
         with open(output_eval_file, "w") as writer:
             logger.info("***** Test results *****")
             for key in sorted(result.keys()):
@@ -861,7 +866,42 @@ def main():
             hits_left.append([])
             hits_right.append([])
             hits.append([])
-            
+        '''
+        file_prefix = str(args.data_dir[7:])
+        f = open(file_prefix + '_ranks.txt','r')
+        lines = f.readlines()
+        for line in lines:
+            temp = line.strip().split()
+            rank1 = int(temp[0])
+            ranks_left.append(rank1+1)
+            print('left: ', rank1)
+            ranks.append(rank1+1)
+            if rank1 < 10:
+                top_ten_hit_count += 1
+            rank2 = int(temp[1])
+            ranks.append(rank2+1)
+            ranks_right.append(rank2+1)
+            print('right: ', rank2)
+            print('mean rank until now: ', np.mean(ranks))
+            if rank2 < 10:
+                top_ten_hit_count += 1
+            print("hit@10 until now: ", top_ten_hit_count * 1.0 / len(ranks))                
+            for hits_level in range(10):
+                if rank1 <= hits_level:
+                    hits[hits_level].append(1.0)
+                    hits_left[hits_level].append(1.0)
+                else:
+                    hits[hits_level].append(0.0)
+                    hits_left[hits_level].append(0.0)
+
+                if rank2 <= hits_level:
+                    hits[hits_level].append(1.0)
+                    hits_right[hits_level].append(1.0)
+                else:
+                    hits[hits_level].append(0.0)
+                    hits_right[hits_level].append(0.0)
+    
+        '''
         for test_triple in test_triples:
             head = test_triple[0]
             relation = test_triple[1]
@@ -877,9 +917,9 @@ def main():
                         # may be slow
                         head_corrupt_list.append(tmp_triple)
 
-            tmp_examples = processor._create_examples(head_corrupt_list, "test", cfg.data_dir)
+            tmp_examples = processor._create_examples(head_corrupt_list, "test", args.data_dir)
             print(len(tmp_examples))
-            tmp_features = convert_examples_to_features(tmp_examples, label_list, cfg.max_seq_length, tokenizer, print_info = False)
+            tmp_features = convert_examples_to_features(tmp_examples, label_list, args.max_seq_length, tokenizer, print_info = False)
             all_input_ids = torch.tensor([f.input_ids for f in tmp_features], dtype=torch.long)
             all_input_mask = torch.tensor([f.input_mask for f in tmp_features], dtype=torch.long)
             all_segment_ids = torch.tensor([f.segment_ids for f in tmp_features], dtype=torch.long)
@@ -888,7 +928,7 @@ def main():
             eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
             # Run prediction for temp data
             eval_sampler = SequentialSampler(eval_data)
-            eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=cfg.eval_batch_size)
+            eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size)
             model.eval()
 
             preds = []
@@ -916,11 +956,11 @@ def main():
             rel_values = preds[:, all_label_ids[0]]
             rel_values = torch.tensor(rel_values)
             #print(rel_values, rel_values.shape)
-            _, cfgort1 = torch.sort(rel_values, descending=True)
+            _, argsort1 = torch.sort(rel_values, descending=True)
             #print(max_values)
-            #print(cfgort1)
-            cfgort1 = cfgort1.cpu().numpy()
-            rank1 = np.where(cfgort1 == 0)[0][0]
+            #print(argsort1)
+            argsort1 = argsort1.cpu().numpy()
+            rank1 = np.where(argsort1 == 0)[0][0]
             print('left: ', rank1)
             ranks.append(rank1+1)
             ranks_left.append(rank1+1)
@@ -936,9 +976,9 @@ def main():
                         # may be slow
                         tail_corrupt_list.append(tmp_triple)
 
-            tmp_examples = processor._create_examples(tail_corrupt_list, "test", cfg.data_dir)
+            tmp_examples = processor._create_examples(tail_corrupt_list, "test", args.data_dir)
             #print(len(tmp_examples))
-            tmp_features = convert_examples_to_features(tmp_examples, label_list, cfg.max_seq_length, tokenizer, print_info = False)
+            tmp_features = convert_examples_to_features(tmp_examples, label_list, args.max_seq_length, tokenizer, print_info = False)
             all_input_ids = torch.tensor([f.input_ids for f in tmp_features], dtype=torch.long)
             all_input_mask = torch.tensor([f.input_mask for f in tmp_features], dtype=torch.long)
             all_segment_ids = torch.tensor([f.segment_ids for f in tmp_features], dtype=torch.long)
@@ -947,7 +987,7 @@ def main():
             eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
             # Run prediction for temp data
             eval_sampler = SequentialSampler(eval_data)
-            eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=cfg.eval_batch_size)
+            eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size)
             model.eval()
             preds = []        
 
@@ -972,9 +1012,9 @@ def main():
             # get the dimension corresponding to current label 1
             rel_values = preds[:, all_label_ids[0]]
             rel_values = torch.tensor(rel_values)
-            _, cfgort1 = torch.sort(rel_values, descending=True)
-            cfgort1 = cfgort1.cpu().numpy()
-            rank2 = np.where(cfgort1 == 0)[0][0]
+            _, argsort1 = torch.sort(rel_values, descending=True)
+            argsort1 = argsort1.cpu().numpy()
+            rank2 = np.where(argsort1 == 0)[0][0]
             ranks.append(rank2+1)
             ranks_right.append(rank2+1)
             print('right: ', rank2)
@@ -983,8 +1023,8 @@ def main():
                 top_ten_hit_count += 1
             print("hit@10 until now: ", top_ten_hit_count * 1.0 / len(ranks))
 
-            file_prefix = str(cfg.data_dir[7:]) + "_" + str(cfg.train_batch_size) + "_" + str(cfg.learning_rate) + "_" + str(cfg.max_seq_length) + "_" + str(cfg.num_train_epochs)
-            #file_prefix = str(cfg.data_dir[7:])
+            file_prefix = str(args.data_dir[7:]) + "_" + str(args.train_batch_size) + "_" + str(args.learning_rate) + "_" + str(args.max_seq_length) + "_" + str(args.num_train_epochs)
+            #file_prefix = str(args.data_dir[7:])
             f = open(file_prefix + '_ranks.txt','a')
             f.write(str(rank1) + '\t' + str(rank2) + '\n')
             f.close()
