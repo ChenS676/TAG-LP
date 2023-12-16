@@ -17,8 +17,8 @@ from sklearn import metrics
 sys.path.insert(0, '..')
 from src.utilities.config import cfg, update_cfg
 from src.utilities.utils import compute_metrics, config_device
-from src.loaders.kg_loader import KGProcessor, convert_examples_to_features
-from src.loaders.data import get_train_data, get_eval_data
+from src.data_utils.kg_loader import KGProcessor, convert_examples_to_features
+from src.data_utils.data import get_train_data, get_eval_data
 
 logger = logging.getLogger(__name__)
 timebudget.set_quiet()  # Don't show measurements as they happen
@@ -151,6 +151,7 @@ def get_model(cfg: CN):
               cache_dir=cache_dir,
               num_labels=cfg.num_labels)
     return model, tokenizer
+
 
 def test_loop(processor, 
               model, 
@@ -298,6 +299,7 @@ def create_optimizer(model,
         {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
         ]
     if cfg.fp16:
+        # TODO 
         try:
             from apex.optimizers import FP16_Optimizer
             from apex.optimizers import FusedAdam

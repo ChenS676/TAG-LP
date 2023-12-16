@@ -42,9 +42,9 @@ from sklearn import metrics
 from tqdm import tqdm 
 from src.utilities.utils import compute_metrics, config_device
 from src.utilities.utils import seed_everything, check_cfg, save_to_file, ddp_setup
-from src.loaders.data import get_train_data, get_eval_data
-from src.lm_trainer.bert_trainer import train_loop, eval_loop, get_model, create_optimizer, test_loop
-from src.loaders.kg_loader import KGProcessor, convert_examples_to_features
+from src.data_utils.data import get_train_data, get_eval_data
+from src.LMs.bert_trainer import train_loop, eval_loop, get_model, create_optimizer, test_loop
+from src.data_utils.kg_loader import KGProcessor, convert_examples_to_features
 
 # for debug
 from pdb import set_trace as stop
