@@ -2,9 +2,9 @@ import torch
 import numpy as np
 
 from transformers import AutoTokenizer, AutoModel, TrainingArguments, Trainer, IntervalStrategy
-from src.data_utils import Dataset
+from src.data_utils.dataset import Dataset
 from src.data_utils.hf_loader import load_data
-
+from src.utilities.utils import init_path, time_logger
 
 def compute_metrics(p):
     from sklearn.metrics import accuracy_score
@@ -19,23 +19,20 @@ class LMTrainer():
         self.dataset_name = cfg.dataset
         self.seed = cfg.seed
 
-        self.model_name = cfg.lm.model.name
-        self.feat_shrink = cfg.lm.model.feat_shrink
+        self.model_name = "distilbert-base-uncased" # cfg.lm.model.name
+        # self.feat_shrink = cfg.lm.model.feat_shrink
 
-        self.weight_decay = cfg.lm.train.weight_decay
-        self.dropout = cfg.lm.train.dropout
+        self.weight_decay = 0.01 # cfg.lm.train.weight_decay
         self.att_dropout = cfg.lm.train.att_dropout
-        self.cla_dropout = cfg.lm.train.cla_dropout
-        self.batch_size = cfg.lm.train.batch_size
-        self.epochs = cfg.lm.train.epochs
-        self.warmup_epochs = cfg.lm.train.warmup_epochs
-        self.eval_patience = cfg.lm.train.eval_patience
-        self.grad_acc_steps = cfg.lm.train.grad_acc_steps
-        self.lr = cfg.lm.train.lr
+        self.batch_size = 16 #cfg.lm.train.batch_size
+        self.epochs = 2 # cfg.lm.train.epochs
+        # self.warmup_epochs = cfg.lm.train.warmup_epochs
+        # self.eval_patience = cfg.lm.train.eval_patience
+        # self.grad_acc_steps = cfg.lm.train.grad_acc_steps
+        self.lr = 2e-5 #cfg.lm.train.lr
 
-        self.use_gpt_str = "2" if cfg.lm.train.use_gpt else ""
-        self.output_dir = f'output/{self.dataset_name}{self.use_gpt_str}/{self.model_name}-seed{self.seed}'
-        self.ckpt_dir = f'prt_lm/{self.dataset_name}{self.use_gpt_str}/{self.model_name}-seed{self.seed}'
+        self.output_dir = f'output/{self.dataset_name}/{self.model_name}-seed{self.seed}'
+        self.ckpt_dir = f'prt_lm/{self.dataset_name}/{self.model_name}-seed{self.seed}'
 
         # Preprocess data
         data, text = load_data(
@@ -59,6 +56,7 @@ class LMTrainer():
 
         # Define pretrained tokenizer and model
         bert_model = AutoModel.from_pretrained(self.model_name)
+        exit(-1)
         self.model = BertClassifier(bert_model,
                                     n_labels=self.n_labels,
                                     feat_shrink=self.feat_shrink)

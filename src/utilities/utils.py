@@ -187,5 +187,3 @@ def ddp_setup(cfg, ngpus_per_node, gpu, model):
 
 def is_rank_zero(cfg):
     return cfg.rank == 0
-
-

@@ -19,8 +19,8 @@ from src.utilities.config import cfg
 logger = logging.getLogger(__name__)
 
 from timebudget import timebudget
-timebudget.set_quiet()  # don't show measurements as they happen
-timebudget.report_at_exit()  # Generate report when the program exits
+timebudget.set_quiet() 
+timebudget.report_at_exit() 
 
 import warnings
 warnings.simplefilter("ignore")

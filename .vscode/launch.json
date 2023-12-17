@@ -15,8 +15,11 @@
 			"env": {
 				"PYTHONPATH": "${cwd}"
 			},
-            "": [
-                "--do_train"
+            "args": [
+                // "--do_train"
+                "dataset", 
+                "ogbn-arxiv"
+
             ]
         }
     ]

@@ -1,3 +1,6 @@
+
+# adopted from https://huggingface.co/docs/transformers/tasks/sequence_classification
+
 from datasets import load_dataset
 from transformers import AutoTokenizer
 from transformers import DataCollatorWithPadding
@@ -14,7 +17,7 @@ imdb["test"][0]
 print(imdb["test"][0])
 
 
-tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
+tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased")
 tokenized_imdb = imdb.map(preprocess_function, batched=True)
 data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 accuracy = evaluate.load("accuracy")
@@ -30,7 +33,7 @@ label2id = {"NEGATIVE": 0, "POSITIVE": 1}
 
 
 model = AutoModelForSequenceClassification.from_pretrained(
-    "bert-base-uncased", num_labels=2, id2label=id2label, label2id=label2id
+    "distilbert-base-uncased", num_labels=2, id2label=id2label, label2id=label2id
 )
 
 training_args = TrainingArguments(
