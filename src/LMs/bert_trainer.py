@@ -6,8 +6,7 @@ import numpy as np
 import torch
 from tqdm import tqdm, trange
 from torch.nn import CrossEntropyLoss
-from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE
-from transformers import BertTokenizer, BertForSequenceClassification
+
 from timebudget import timebudget
 from IPython import embed
 from yacs.config import CfgNode as CN
@@ -17,15 +16,12 @@ from sklearn import metrics
 sys.path.insert(0, '..')
 from src.utilities.config import cfg, update_cfg
 from src.utilities.utils import compute_metrics, config_device
-from src.data_utils.kg_loader import KGProcessor, convert_examples_to_features
-from src.data_utils.data import get_train_data, get_eval_data
+from src.data_utils.kg_loader import convert_examples_to_features, get_eval_data
 
 logger = logging.getLogger(__name__)
 timebudget.set_quiet()  # Don't show measurements as they happen
 timebudget.report_at_exit()  # Generate a report when the program exits
-from pdb import set_trace as stop
-# TODO: Accelerate train
-# TODO: Test on CPU
+
 
 @timebudget
 def train_loop(cfg: CN,

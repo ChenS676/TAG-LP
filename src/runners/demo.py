@@ -1,17 +1,13 @@
 # This script is implemented based on the https://github.com/Juanhui28/HeaRT
+# and https://github.com/yao8839836/kg-bert/blob/master/run_bert_link_prediction.py
 # Existing Train Settings: one negative sample per positive sample
 # Existing Evaluation Settings: ? the same set of randomly sampled negatives are used for all positive samples. 
 # for ogbl-citation2: randomly sample 1000 negative samples per positive sample due to scalable issue.
 
 from __future__ import absolute_import, division, print_function
-import logging
-import sys
 import numpy as np
 import torch
-import torch.multiprocessing as mp
-from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE, WEIGHTS_NAME, CONFIG_NAME
-from torch.optim import AdamW
-from transformers import BertTokenizer, BertForSequenceClassification, BertConfig, get_linear_schedule_with_warmup
+from transformers import BertTokenizer, BertForSequenceClassification
 import logging
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
@@ -29,20 +25,10 @@ timebudget.report_at_exit()  # Generate report when the program exits
 import warnings
 warnings.simplefilter("ignore")
 from IPython import embed
-# TODO https://wandb.ai/wandb_fc/articles/reports/Monitor-Improve-GPU-Usage-for-Model-Training--Vmlldzo1NDQzNjM3#:~:text=Try%20increasing%20your%20batch%20size&text=Gradients%20for%20a%20batch%20are,increase%20the%20speed%20of%20calculation.
-# improve GPU usage for model training
-# python -m torch.distributed.launch loaders/demo.py --do_train
-# TODO double check the evaluation method in KG, compare it with others 1. tangji liang lecture, 2. galkin new paper
-# TODO add more evaluation metrics
 
-from torch.nn import CrossEntropyLoss, MSELoss
-from scipy.stats import pearsonr, spearmanr
-from sklearn.metrics import matthews_corrcoef, f1_score
-from sklearn import metrics
-from tqdm import tqdm 
-from src.utilities.utils import compute_metrics, config_device
+
 from src.utilities.utils import seed_everything, check_cfg, save_to_file, ddp_setup
-from src.data_utils.data import get_train_data, get_eval_data
+from src.data_utils.kg_loader import get_train_data, get_eval_data
 from src.LMs.bert_trainer import train_loop, eval_loop, get_model, create_optimizer, test_loop
 from src.data_utils.kg_loader import KGProcessor, convert_examples_to_features
 
